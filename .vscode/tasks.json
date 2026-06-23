@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "start-firebase-emulators",
+      "type": "shell",
+      "command": "firebase emulators:start --import=./emulator-data --export-on-exit=./emulator-data",
+      "options": {
+        "shell": {
+          "executable": "cmd.exe",
+          "args": ["/d", "/c"]
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": ".",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "All emulators ready"
+        }
+      }
+    }
+  ]
+}

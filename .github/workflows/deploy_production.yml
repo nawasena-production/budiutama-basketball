@@ -1,0 +1,52 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy_production:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: stable
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build Flutter Web Release
+        run: flutter build web --release
+
+      - name: Build Android APK Release
+        run: flutter build apk --release
+
+      - name: Deploy to Firebase Hosting Live Channel
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BUDIUTAMA }}
+          projectId: bu-basketball-test
+          channelId: live
+
+      - name: Deploy Security Rules
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only firestore:rules,storage
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BUDIUTAMA }}
+          PROJECT_ID: bu-basketball-test
+
+      - name: Deploy Cloud Functions
+        uses: w9jds/firebase-action@master
+        with:
+          args: deploy --only functions
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BUDIUTAMA }}
+          PROJECT_ID: bu-basketball-test

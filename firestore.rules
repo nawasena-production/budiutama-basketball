@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── HELPER FUNCTIONS ────────────────────────────────────────
+    function isAuth()         { return request.auth != null; }
+    function role()           { return request.auth.token.role; }
+    function isManager()      { return isAuth() && role() == 'manager'; }
+    function isCoach()        { return isAuth() && role() == 'coach'; }
+    function isStatistician() { return isAuth() && role() == 'statistician'; }
+    function isPlayer()       { return isAuth() && role() == 'player'; }
+    function isStaff()        { return isManager() || isCoach(); }
+
+    // ── USERS ──────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read:  if isAuth() && (isStaff() || request.auth.uid == resource.data.uid);
+      allow write: if false; // hanya Cloud Functions
+    }
+
+    // ── TEAMS ──────────────────────────────────────────────────
+    match /teams/{teamId} {
+      allow read:  if isAuth();
+      allow write: if isManager();
+    }
+
+    // ── PLAYERS ────────────────────────────────────────────────
+    match /players/{playerId} {
+      allow read: if isAuth() && (
+        isStaff() || isStatistician() ||
+        (isPlayer() && request.auth.uid == resource.data.user_id)
+      );
+      allow create: if isManager();
+      allow update: if isManager();
+      allow delete: if false;
+    }
+
+    // ── EVENTS (TURNAMEN) ──────────────────────────────────────
+    match /events/{eventId} {
+      allow read:  if isAuth();
+      allow write: if isManager();
+    }
+
+    // ── MATCHES ────────────────────────────────────────────────
+    match /matches/{matchId} {
+      allow read:   if isAuth();
+      allow create: if isManager();
+      allow update: if isManager() || isStatistician();
+      allow delete: if false;
+
+      match /timer_state/{doc} {
+        allow read:  if isAuth();
+        allow write: if isStatistician();
+      }
+
+      match /events/{eventId} {
+        allow read:   if isAuth();
+        allow create: if isStatistician();
+        // Hanya field is_undone yang bisa diupdate
+        allow update: if isStatistician()
+          && request.resource.data.diff(resource.data)
+             .affectedKeys().hasOnly(['is_undone']);
+        allow delete: if false;
+      }
+
+      match /player_stats/{playerId} {
+        allow read:  if isAuth();
+        allow write: if isStatistician();
+      }
+
+      match /lineups/{playerId} {
+        allow read:  if isAuth();
+        allow write: if isStatistician();
+      }
+    }
+
+    // ── INJURY REPORTS ─────────────────────────────────────────
+    match /injury_reports/{reportId} {
+      allow read:  if isStaff();
+      allow write: if isStaff();
+    }
+
+    // ── TRAINING SESSIONS ──────────────────────────────────────
+    match /training_sessions/{sessionId} {
+      allow read:  if isAuth();
+      allow write: if isManager();
+    }
+
+    // ── PHYSICAL TEST SESSIONS ─────────────────────────────────
+    match /physical_test_sessions/{sessionId} {
+      allow read:  if isStaff();
+      allow write: if isStaff();
+
+      match /results/{playerId} {
+        allow read:  if isStaff();
+        allow write: if isStaff();
+      }
+    }
+
+    // ── AUDIT LOGS — read-only dari client ─────────────────────
+    match /audit_logs/{logId} {
+      allow read:  if isStaff();
+      allow write: if false; // hanya Cloud Functions Admin SDK
+    }
+  }
+}

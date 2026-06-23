@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "budiutama_basketball (Debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "preLaunchTask": "start-firebase-emulators"
+    },
+    {
+      "name": "budiutama_basketball (Debug, no emulator auto-start)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart"
+    }
+  ]
+}

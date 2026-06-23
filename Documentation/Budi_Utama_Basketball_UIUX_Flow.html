@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UI/UX Flow — Budi Utama Basketball Management System v2.0</title>
+<style>
+  :root {
+    --primary: #1A3A5C;
+    --accent: #E8420A;
+    --mid: #2E75B6;
+    --purple: #534AB7;
+    --teal: #0F6E56;
+    --amber: #BA7517;
+    --red: #A32D2D;
+    --green: #3B6D11;
+    --gray: #5F5E5A;
+    --light: #F4F6F8;
+    --border: #C8D6E5;
+    --white: #ffffff;
+    --text: #1C2B3A;
+    --muted: #6B7A8D;
+    --firebase: #F57C00;
+    --flutter: #0175C2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #F0F4F8; color: var(--text); font-size: 14px; }
+
+  .cover {
+    background: var(--primary);
+    color: white;
+    padding: 60px 80px;
+    min-height: 200px;
+    border-bottom: 8px solid var(--accent);
+  }
+  .cover h1 { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
+  .cover p { color: #9BB5D0; font-size: 15px; margin-top: 6px; }
+  .cover .tag { display: inline-block; background: var(--accent); color: white; font-size: 11px; padding: 3px 10px; border-radius: 12px; margin-top: 8px; margin-right: 6px; }
+  .cover .tag-flutter { background: var(--flutter); }
+  .cover .tag-firebase { background: var(--firebase); }
+
+  .toc { background: white; padding: 32px 80px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; flex-wrap: wrap; }
+  .toc a { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); font-size: 12px; color: var(--primary); text-decoration: none; }
+  .toc a:hover { background: var(--light); }
+
+  .section { padding: 48px 80px; border-bottom: 1px solid var(--border); background: white; }
+  .section:nth-child(even) { background: #FAFBFC; }
+  .section-title {
+    font-size: 22px; font-weight: 700; color: var(--primary);
+    padding-bottom: 10px; border-bottom: 3px solid var(--accent);
+    margin-bottom: 24px; display: flex; align-items: center; gap: 10px;
+  }
+  .section-title span { background: var(--accent); color: white; font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+  h3 { font-size: 16px; color: var(--primary); margin: 24px 0 12px; }
+
+  /* TECH STACK BADGE */
+  .tech-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; margin: 2px; }
+  .tb-flutter { background: #E3F2FD; color: #0175C2; border: 1px solid #90CAF9; }
+  .tb-firebase { background: #FFF3E0; color: #E65100; border: 1px solid #FFCC80; }
+  .tb-dart { background: #E8F5E9; color: #2E7D32; border: 1px solid #A5D6A7; }
+
+  /* FLOW */
+  .flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .flow-row { display: flex; justify-content: center; align-items: center; gap: 16px; }
+  .flow-arrow { text-align: center; color: var(--muted); font-size: 20px; line-height: 28px; }
+
+  .node {
+    border-radius: 8px; padding: 10px 18px; text-align: center;
+    font-size: 13px; font-weight: 600; min-width: 140px;
+    border: 1.5px solid transparent;
+  }
+  .node sub { font-size: 10px; font-weight: 400; display: block; margin-top: 2px; }
+
+  .n-blue   { background: #E6F1FB; border-color: #378ADD; color: #0C447C; }
+  .n-purple { background: #EEEDFE; border-color: #7F77DD; color: #3C3489; }
+  .n-teal   { background: #E1F5EE; border-color: #1D9E75; color: #085041; }
+  .n-amber  { background: #FAEEDA; border-color: #EF9F27; color: #633806; }
+  .n-red    { background: #FCEBEB; border-color: #E24B4A; color: #791F1F; }
+  .n-gray   { background: #F1EFE8; border-color: #888780; color: #444441; }
+  .n-coral  { background: #FAECE7; border-color: #D85A30; color: #4A1B0C; }
+  .n-green  { background: #EAF3DE; border-color: #639922; color: #27500A; }
+  .n-primary { background: var(--primary); border-color: var(--primary); color: white; }
+  .n-flutter { background: #E3F2FD; border-color: #0175C2; color: #01579B; }
+  .n-firebase { background: #FFF3E0; border-color: #F57C00; color: #E65100; }
+
+  /* WIREFRAME — Mobile/Tablet Flutter App */
+  .phone-frame {
+    border: 3px solid #334155; border-radius: 28px; overflow: hidden;
+    background: white; width: 320px; margin: 0 auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+  .phone-status-bar { background: #1E293B; padding: 8px 16px; display: flex; justify-content: space-between; font-size: 10px; color: white; }
+  .phone-content { min-height: 500px; }
+
+  .tablet-frame {
+    border: 3px solid #334155; border-radius: 16px; overflow: hidden;
+    background: white; max-width: 900px; margin: 0 auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+
+  /* FLUTTER APP BAR */
+  .app-bar { background: var(--primary); color: white; padding: 14px 16px; display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; }
+  .app-bar-actions { margin-left: auto; display: flex; gap: 8px; font-size: 13px; }
+
+  /* BOTTOM NAV */
+  .bottom-nav { background: white; border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 8px 0; }
+  .bn-item { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 9px; color: var(--muted); padding: 4px 12px; border-radius: 8px; cursor: pointer; }
+  .bn-item.active { color: var(--primary); background: #E6F1FB; }
+  .bn-icon { font-size: 18px; }
+
+  /* LIST ITEMS */
+  .list-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .list-item:hover { background: var(--light); }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .list-info { flex: 1; }
+  .list-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .list-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* BADGE */
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+  .badge-green  { background: #EAF3DE; color: #27500A; }
+  .badge-amber  { background: #FAEEDA; color: #633806; }
+  .badge-red    { background: #FCEBEB; color: #791F1F; }
+  .badge-gray   { background: #F1EFE8; color: #444441; }
+  .badge-blue   { background: #E6F1FB; color: #0C447C; }
+
+  /* MATCH MODE */
+  .match-outer { border-radius: 12px; overflow: hidden; background: #0F172A; max-width: 960px; margin: 0 auto; }
+  .match-header { background: #1E293B; padding: 10px 16px; display: flex; gap: 12px; align-items: center; border-bottom: 1px solid #334155; }
+  .match-score-block { text-align: center; flex: 1; }
+  .match-score { font-size: 32px; font-weight: 700; color: white; letter-spacing: 2px; }
+  .match-label { font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 1px; }
+  .match-timer-block { text-align: center; min-width: 120px; }
+  .match-timer { font-size: 26px; font-weight: 700; font-family: monospace; color: #F1F5F9; }
+  .match-body { display: flex; height: 360px; }
+  .match-panel { background: #1E293B; border-right: 1px solid #334155; padding: 12px; }
+  .match-panel-label { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .match-left { width: 180px; }
+  .match-center { flex: 1; padding: 12px; }
+  .match-right { width: 160px; background: #162032; }
+  .player-card-match { background: #0F172A; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; cursor: pointer; border: 1.5px solid transparent; }
+  .player-card-match.selected { border-color: #E8420A; background: #1C1523; }
+  .player-card-match .jersey { font-size: 16px; font-weight: 700; color: #E8420A; width: 28px; text-align: center; }
+  .player-card-match .name { font-size: 11px; color: #CBD5E1; }
+  .player-card-match .pos { font-size: 10px; color: #475569; }
+
+  .action-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+  .action-btn { border-radius: 8px; padding: 12px 4px; text-align: center; font-size: 12px; font-weight: 700; cursor: pointer; border: 1px solid transparent; }
+  .action-scoring { background: #1B4332; border-color: #2D6A4F; color: #95D5B2; }
+  .action-miss    { background: #450A0A; border-color: #7F1D1D; color: #FCA5A5; }
+  .action-stat    { background: #1E3A5F; border-color: #2563EB; color: #93C5FD; }
+  .action-foul    { background: #451A03; border-color: #92400E; color: #FCD34D; }
+  .action-undo    { background: #1E293B; border-color: #475569; color: #94A3B8; width: 100%; margin-top: 8px; padding: 8px; border-radius: 6px; cursor: pointer; font-size: 11px; }
+
+  .tab-bar { display: flex; border-bottom: 1px solid #334155; }
+  .tab-item { flex: 1; padding: 8px; text-align: center; font-size: 11px; color: #64748B; cursor: pointer; }
+  .tab-item.active { color: #E8420A; border-bottom: 2px solid #E8420A; }
+
+  .opp-btn { width: 100%; margin-bottom: 6px; border-radius: 6px; padding: 8px; text-align: center; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid transparent; }
+
+  .match-bottom { background: #0F172A; border-top: 1px solid #334155; padding: 10px 16px; display: flex; gap: 16px; align-items: center; }
+  .sub-area { flex: 1; background: #1E293B; border-radius: 6px; padding: 8px 12px; }
+  .sub-label { font-size: 10px; color: #475569; margin-bottom: 4px; }
+  .sub-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sub-pill { background: #0F172A; border: 1px solid #334155; color: #94A3B8; border-radius: 12px; padding: 3px 10px; font-size: 10px; cursor: pointer; }
+  .sub-pill.out { border-color: #E24B4A; color: #FCA5A5; background: #450A0A; }
+  .sub-pill.in  { border-color: #22C55E; color: #86EFAC; background: #052E16; }
+
+  .timeline-col { width: 200px; background: #0F172A; border-left: 1px solid #334155; padding: 10px; overflow-y: auto; }
+  .tl-item { font-size: 10px; padding: 4px 0; border-bottom: 1px solid #1E293B; color: #94A3B8; }
+  .tl-item .tl-action { color: #E2E8F0; font-weight: 600; }
+  .tl-item .tl-made { color: #86EFAC; }
+  .tl-item .tl-miss { color: #FCA5A5; }
+
+  /* STATE MACHINE */
+  .state-flow { display: flex; align-items: center; gap: 0; flex-wrap: wrap; justify-content: center; margin: 16px 0; }
+  .state-box { border-radius: 8px; padding: 10px 14px; text-align: center; font-size: 12px; font-weight: 700; border: 1.5px solid var(--border); background: var(--light); min-width: 90px; }
+  .state-box.active-q { background: #E1F5EE; border-color: #1D9E75; color: #085041; }
+  .state-box.break { background: #FAEEDA; border-color: #EF9F27; color: #633806; }
+  .state-box.special { background: #EEEDFE; border-color: #7F77DD; color: #3C3489; }
+  .state-box.terminal { background: #F1EFE8; border-color: #888780; color: #444441; }
+  .state-arrow { color: var(--muted); font-size: 18px; padding: 0 4px; }
+
+  /* TABLE */
+  .int-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
+  .int-table th { background: var(--primary); color: white; padding: 8px 12px; text-align: left; font-size: 11px; }
+  .int-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .int-table tr:nth-child(even) td { background: var(--light); }
+  .check { color: #3B6D11; font-weight: 700; }
+  .cross { color: #A32D2D; }
+
+  /* FIRESTORE SCHEMA VIZ */
+  .schema-box { background: #0F172A; border-radius: 10px; padding: 16px; font-family: monospace; font-size: 11px; line-height: 1.8; color: #94A3B8; overflow-x: auto; }
+  .sc-collection { color: #60A5FA; font-weight: 700; }
+  .sc-doc { color: #F59E0B; }
+  .sc-field { color: #86EFAC; }
+  .sc-value { color: #C4B5FD; }
+  .sc-sub { color: #34D399; }
+  .sc-comment { color: #475569; font-style: italic; }
+
+  @media (max-width: 700px) {
+    .section, .toc, .cover { padding-left: 20px; padding-right: 20px; }
+    .match-body { flex-direction: column; height: auto; }
+    .match-left, .match-right, .timeline-col { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <h1>UI/UX Flow Document</h1>
+  <h1>Budi Utama Basketball Management System</h1>
+  <p>SMA Budi Utama Yogyakarta</p>
+  <p style="margin-top:12px; font-size:13px">Versi 2.0 &nbsp;·&nbsp; Juni 2026 &nbsp;·&nbsp; Referensi: PRD v2.0, SRS v2.0, SDD v2.0</p>
+  <div style="margin-top:14px">
+    <span class="tag tag-flutter">Flutter 3.x</span>
+    <span class="tag tag-firebase">Firebase</span>
+    <span class="tag">Android · iOS · Web</span>
+    <span class="tag">CONFIDENTIAL</span>
+  </div>
+</div>
+
+<!-- TOC -->
+<div class="toc">
+  <a href="#s1">1. Overall User Flow</a>
+  <a href="#s2">2. Auth Flow</a>
+  <a href="#s3">3. Firebase Architecture</a>
+  <a href="#s4">4. Dashboard Mode</a>
+  <a href="#s5">5. Player Management</a>
+  <a href="#s6">6. Match Management</a>
+  <a href="#s7">7. Match Mode Wireframe</a>
+  <a href="#court-overlay">7b. Court Overlay</a>
+  <a href="#s8">8. State Machine</a>
+  <a href="#s9">9. Firestore Schema</a>
+  <a href="#s10">10. Injury & Training</a>
+  <a href="#s11">11. Physical Test</a>
+  <a href="#s12">12. Statistics Dashboard</a>
+  <a href="#s13">13. Interaction Rules</a>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 1 — OVERALL USER FLOW
+═══════════════════════════════════════════ -->
+<div class="section" id="s1">
+  <div class="section-title"><span>01</span> Overall User Flow</div>
+  <p style="color:var(--muted); margin-bottom:24px">Gambaran keseluruhan perjalanan pengguna dari membuka aplikasi Flutter hingga dua mode utama.</p>
+
+  <div class="flow" style="gap:4px">
+    <div class="flow-row">
+      <div class="node n-flutter">Buka Flutter App<sub>Android / iOS / Web</sub></div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-row">
+      <div class="node n-firebase">Firebase Auth Check<sub>Session masih valid?</sub></div>
+    </div>
+    <div style="display:flex;gap:16px;margin:8px 0">
+      <div class="node n-gray" style="font-size:12px">Session expired<br>→ Login screen</div>
+      <div class="node n-teal" style="font-size:12px">Session valid<br>→ Langsung masuk</div>
+    </div>
+    <div class="flow-arrow">↓</div>
+    <div class="flow-row">
+      <div class="node n-amber">Baca Custom Claims → Deteksi Role</div>
+    </div>
+
+    <div style="display:flex;gap:16px;margin:16px 0;align-items:flex-start;justify-content:center;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+        <div class="node n-teal" style="min-width:130px;font-size:12px">Player<sub>Read-only pribadi</sub></div>
+        <div style="font-size:11px;color:var(--muted)">↓</div>
+        <div class="node n-gray" style="min-width:130px;font-size:11px">Statistik & jadwal milik sendiri</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+        <div class="node n-purple" style="min-width:140px;font-size:12px">Coach<sub>Evaluasi performa</sub></div>
+        <div style="font-size:11px;color:var(--muted)">↓</div>
+        <div class="node n-purple" style="min-width:140px;font-size:11px">Dashboard Mode</div>
+        <div style="font-size:11px;color:var(--muted)">↓</div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div class="node n-blue" style="min-width:140px;font-size:10px">Statistik & Analytics</div>
+          <div class="node n-teal" style="min-width:140px;font-size:10px">Laporan Cedera</div>
+          <div class="node n-amber" style="min-width:140px;font-size:10px">Live Player Stats (read)</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+        <div class="node n-primary" style="min-width:140px;font-size:12px">Team Manager<sub>Kelola operasional</sub></div>
+        <div style="font-size:11px;color:var(--muted)">↓</div>
+        <div class="node n-purple" style="min-width:140px;font-size:11px">Dashboard Mode</div>
+        <div style="font-size:11px;color:var(--muted)">↓</div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div class="node n-blue" style="min-width:140px;font-size:10px">Player Management</div>
+          <div class="node n-blue" style="min-width:140px;font-size:10px">Training Management</div>
+          <div class="node n-blue" style="min-width:140px;font-size:10px">Match Management</div>
+          <div class="node n-teal" style="min-width:140px;font-size:10px">Physical Test Mgmt</div>
+          <div class="node n-teal" style="min-width:140px;font-size:10px">Audit Log</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+        <div class="node n-coral" style="min-width:140px;font-size:12px">Statistician<sub>Live input</sub></div>
+        <div style="font-size:11px;color:var(--muted)">↓</div>
+        <div class="node n-coral" style="min-width:140px;font-size:11px">Match Management</div>
+        <div style="font-size:11px;color:var(--muted)">↓</div>
+        <div class="node n-coral" style="min-width:140px;font-size:11px;background:#E8420A;color:white;border-color:#E8420A">START MATCH →<br>Match Mode Fullscreen</div>
+        <div style="font-size:11px;color:var(--muted)">↓</div>
+        <div class="node n-gray" style="min-width:140px;font-size:10px">POST_MATCH → Rekap Stats</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 2 — AUTH FLOW
+═══════════════════════════════════════════ -->
+<div class="section" id="s2">
+  <div class="section-title"><span>02</span> Authentication Flow (Firebase Auth)</div>
+
+  <div style="display:flex;gap:40px;flex-wrap:wrap">
+    <div style="flex:1;min-width:280px">
+      <h3>Alur Login Firebase</h3>
+      <div class="flow" style="gap:4px;align-items:flex-start">
+        <div class="node n-flutter" style="width:100%">1. Input email + password di Flutter</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">2. reCAPTCHA v3 berjalan invisible di background</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">3. Firebase Auth: signInWithEmailAndPassword()</div>
+        <div style="display:flex;gap:8px;width:100%">
+          <div class="node n-red" style="flex:1">Gagal → error generik<sub>Max 5x → auto lockout</sub></div>
+          <div style="align-self:center;color:var(--muted)">atau</div>
+          <div class="node n-teal" style="flex:1">Berhasil</div>
+        </div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-amber" style="width:100%">4. Cek trusted_device_ids di Firestore<sub>Hanya Coach & Manager</sub></div>
+        <div style="display:flex;gap:8px;width:100%">
+          <div class="node n-purple" style="flex:1">Device baru →<br>Email OTP via Firebase</div>
+          <div style="align-self:center;color:var(--muted)">atau</div>
+          <div class="node n-gray" style="flex:1">Device dikenal →<br>langsung masuk</div>
+        </div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">5. Baca Custom Claims: role, team_id</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-flutter" style="width:100%">6. GoRouter redirect sesuai role<sub>Security Rules mulai enforce akses data</sub></div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:280px">
+      <h3>Kondisi Edge & Error</h3>
+      <table class="int-table">
+        <tr><th>Kondisi</th><th>Respons Sistem</th></tr>
+        <tr><td>Password salah ≥ 5x</td><td>Firebase Auth auto lockout sementara</td></tr>
+        <tr><td>Device baru (Coach/Manager)</td><td>Email OTP dikirim → tambah device ke trusted list</td></tr>
+        <tr><td>Session expired</td><td>Firebase SDK auto-refresh token (silent)</td></tr>
+        <tr><td>Token tidak bisa direfresh</td><td>Logout otomatis, kembali ke login screen</td></tr>
+        <tr><td>Login dari device dikenal</td><td>Masuk langsung tanpa OTP</td></tr>
+        <tr><td>Logout eksplisit</td><td>FirebaseAuth.signOut() → semua listener berhenti</td></tr>
+        <tr><td>Role diubah Manager</td><td>Force token refresh: getIdToken(forceRefresh: true)</td></tr>
+      </table>
+
+      <h3 style="margin-top:24px">Penyimpanan Session</h3>
+      <table class="int-table">
+        <tr><th>Data</th><th>Lokasi</th><th>Dikelola oleh</th></tr>
+        <tr><td>Auth Token</td><td>Secure storage device</td><td>Firebase SDK otomatis</td></tr>
+        <tr><td>Custom Claims (role)</td><td>JWT payload</td><td>Firebase Admin SDK</td></tr>
+        <tr><td>Trusted Device IDs</td><td>Firestore users/{id}</td><td>Flutter app</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 3 — FIREBASE ARCHITECTURE
+═══════════════════════════════════════════ -->
+<div class="section" id="s3">
+  <div class="section-title"><span>03</span> Firebase Architecture — Pengganti Three-Tier</div>
+
+  <div style="display:flex;gap:24px;flex-wrap:wrap">
+    <div style="flex:1;min-width:300px">
+      <h3>Apa yang Digantikan</h3>
+      <table class="int-table">
+        <tr><th>Arsitektur Lama</th><th>Digantikan oleh</th></tr>
+        <tr><td>Next.js Frontend</td><td><span class="tech-badge tb-flutter">Flutter App</span></td></tr>
+        <tr><td>Node.js + Fastify Middleware</td><td><span class="tech-badge tb-firebase">Firebase Security Rules</span></td></tr>
+        <tr><td>FastAPI Backend</td><td><span class="tech-badge tb-firebase">Cloud Functions TypeScript</span></td></tr>
+        <tr><td>PostgreSQL + Supabase</td><td><span class="tech-badge tb-firebase">Cloud Firestore</span></td></tr>
+        <tr><td>Socket.io + WebSocket Hub</td><td><span class="tech-badge tb-firebase">Firestore Listeners</span></td></tr>
+        <tr><td>JWT + Refresh Token</td><td><span class="tech-badge tb-firebase">Firebase Auth SDK</span></td></tr>
+        <tr><td>JWT Middleware Auth Gate</td><td><span class="tech-badge tb-firebase">Custom Claims + Security Rules</span></td></tr>
+        <tr><td>IndexedDB Offline Logic</td><td><span class="tech-badge tb-firebase">Firestore Offline Persistence</span></td></tr>
+        <tr><td>Supabase Storage</td><td><span class="tech-badge tb-firebase">Firebase Storage</span></td></tr>
+        <tr><td>Rate Limiting Middleware</td><td><span class="tech-badge tb-firebase">Firebase App Check</span></td></tr>
+        <tr><td>Vercel + Railway + Render</td><td><span class="tech-badge tb-firebase">Firebase Hosting</span> <span class="tech-badge tb-flutter">Play Store / App Store</span></td></tr>
+      </table>
+    </div>
+
+    <div style="flex:1;min-width:280px">
+      <h3>Alur Data Firestore (Real-Time)</h3>
+      <div class="flow" style="gap:4px;align-items:flex-start">
+        <div class="node n-coral" style="width:100%">Statistician tap "+2" di Flutter</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-flutter" style="width:100%">Riverpod Notifier: batch write Firestore<sub>event + player_stats + score (atomik)</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Firestore Security Rules validasi<sub>Statistician role? Match aktif?</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Firestore simpan & push delta ke semua listener</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div style="display:flex;gap:8px;width:100%">
+          <div class="node n-purple" style="flex:1;font-size:11px">Tablet Coach<br>Tab 2 update</div>
+          <div class="node n-primary" style="flex:1;font-size:11px">Tablet Manager<br>Tab 2 update</div>
+          <div class="node n-coral" style="flex:1;font-size:11px">Tablet Stat<br>konfirmasi</div>
+        </div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Cloud Function onMatchEventCreated()<sub>Tulis audit log otomatis</sub></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 4 — DASHBOARD MODE
+═══════════════════════════════════════════ -->
+<div class="section" id="s4">
+  <div class="section-title"><span>04</span> Dashboard Mode — Flutter App Layout</div>
+  <p style="color:var(--muted);margin-bottom:20px">Layout adaptif: bottom navigation di smartphone, sidebar di tablet dan Flutter Web.</p>
+
+  <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+    <!-- Phone mockup -->
+    <div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;text-align:center">Smartphone (Android/iOS)</div>
+      <div class="phone-frame">
+        <div class="phone-status-bar"><span>9:41</span><span>🔋 ●●●●</span></div>
+        <div class="app-bar">
+          <span>🏀</span>
+          <span>Players</span>
+          <div class="app-bar-actions"><span>🔍</span><span>+</span></div>
+        </div>
+        <div class="phone-content" style="padding:12px">
+          <!-- Stat cards -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            <div style="background:#E6F1FB;border-radius:8px;padding:10px;text-align:center">
+              <div style="font-size:20px;font-weight:700;color:#0C447C">24</div>
+              <div style="font-size:10px;color:#378ADD">Total Pemain</div>
+            </div>
+            <div style="background:#E1F5EE;border-radius:8px;padding:10px;text-align:center">
+              <div style="font-size:20px;font-weight:700;color:#085041">20</div>
+              <div style="font-size:10px;color:#1D9E75">Aktif</div>
+            </div>
+          </div>
+          <!-- List -->
+          <div class="list-item" style="padding:10px 0;border-radius:8px">
+            <div class="avatar" style="background:#E6F1FB;color:#0C447C">AR</div>
+            <div class="list-info">
+              <div class="list-title">Ahmad Rizki</div>
+              <div class="list-sub">#7 · PG · Tim Putra</div>
+            </div>
+            <span class="badge badge-green">Aktif</span>
+          </div>
+          <div class="list-item" style="padding:10px 0;border-radius:8px">
+            <div class="avatar" style="background:#FAEEDA;color:#633806">BS</div>
+            <div class="list-info">
+              <div class="list-title">Budi Santoso</div>
+              <div class="list-sub">#11 · SF · Tim Putra</div>
+            </div>
+            <span class="badge badge-amber">Cedera</span>
+          </div>
+          <div class="list-item" style="padding:10px 0;border-radius:8px">
+            <div class="avatar" style="background:#E1F5EE;color:#085041">RN</div>
+            <div class="list-info">
+              <div class="list-title">Rina Nuraini</div>
+              <div class="list-sub">#3 · PG · Tim Putri</div>
+            </div>
+            <span class="badge badge-green">Aktif</span>
+          </div>
+        </div>
+        <div class="bottom-nav">
+          <div class="bn-item active"><span class="bn-icon">👤</span>Players</div>
+          <div class="bn-item"><span class="bn-icon">📅</span>Training</div>
+          <div class="bn-item"><span class="bn-icon">🏆</span>Matches</div>
+          <div class="bn-item"><span class="bn-icon">📊</span>Stats</div>
+          <div class="bn-item"><span class="bn-icon">⋯</span>Lainnya</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info panel -->
+    <div style="flex:1;min-width:280px">
+      <h3>Navigasi per Platform</h3>
+      <table class="int-table">
+        <tr><th>Platform</th><th>Navigasi</th><th>Layout</th></tr>
+        <tr><td>Smartphone (Android/iOS)</td><td>Bottom Navigation Bar</td><td>Single column</td></tr>
+        <tr><td>Tablet landscape</td><td>Sidebar kiri (NavigationRail)</td><td>Master-detail</td></tr>
+        <tr><td>Flutter Web (desktop)</td><td>Sidebar kiri lebar</td><td>Three-column</td></tr>
+      </table>
+
+      <h3 style="margin-top:20px">Menu Navigasi</h3>
+      <table class="int-table">
+        <tr><th>Menu</th><th>Coach</th><th>Manager</th><th>Statistician</th><th>Player</th></tr>
+        <tr><td>👤 Players</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td></tr>
+        <tr><td>📅 Training</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td><td class="check">✓ (read)</td></tr>
+        <tr><td>🏅 Events</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓ (read)</td></tr>
+        <tr><td>🏆 Matches</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓ (read)</td></tr>
+        <tr><td>🩺 Injuries</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+        <tr><td>🏃 Physical Tests</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+        <tr><td>📊 Statistics</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td><td class="check">✓ (own)</td></tr>
+        <tr><td>📋 Audit Log</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+        <tr><td>👥 Users</td><td class="cross">✗</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 5 — PLAYER MANAGEMENT FLOW
+═══════════════════════════════════════════ -->
+<div class="section" id="s5">
+  <div class="section-title"><span>05</span> Player Management Flow</div>
+
+  <div style="display:flex;gap:40px;flex-wrap:wrap">
+    <div style="flex:1;min-width:260px">
+      <h3>Alur Tambah Pemain (Manager)</h3>
+      <div class="flow" style="gap:6px;align-items:flex-start">
+        <div class="node n-primary" style="width:100%">Tap FAB "+" di halaman Players</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-gray" style="width:100%">Bottom Sheet muncul<sub>Nama, jersey, posisi, tinggi, berat, tim, foto</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-amber" style="width:100%">Validasi client-side (Dart)<sub>Field wajib, format, range</sub></div>
+        <div style="display:flex;gap:8px;width:100%">
+          <div class="node n-red" style="flex:1">Error inline<sub>Highlight field bermasalah</sub></div>
+          <div style="align-self:center;color:var(--muted)">atau</div>
+          <div class="node n-teal" style="flex:1">Lulus validasi</div>
+        </div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Firestore: set players/{jersey_inisial_teamId}<sub>Security Rules: hanya Manager</sub></div>
+        <div style="display:flex;gap:8px;width:100%">
+          <div class="node n-red" style="flex:1">Jersey duplikat → conflict error</div>
+          <div style="align-self:center;color:var(--muted)">atau</div>
+          <div class="node n-teal" style="flex:1">Tersimpan</div>
+        </div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-teal" style="width:100%">Snackbar sukses; list update via Firestore listener<sub>Cloud Function catat audit log</sub></div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:260px">
+      <h3>Document ID Convention</h3>
+      <div class="schema-box">
+<span class="sc-comment">// Format: {jersey}_{inisial}_{teamId}</span>
+<span class="sc-collection">players/</span>
+  <span class="sc-doc">7_ar_putra2526</span> {
+    full_name: <span class="sc-value">"Ahmad Rizki"</span>,
+    jersey_number: <span class="sc-value">7</span>,
+    team_id: <span class="sc-value">"putra_2526"</span>,
+    position: <span class="sc-value">"PG"</span>,
+    status: <span class="sc-value">"active"</span>
+  }
+  <span class="sc-doc">11_bs_putra2526</span> {
+    full_name: <span class="sc-value">"Budi Santoso"</span>,
+    jersey_number: <span class="sc-value">11</span>,
+    status: <span class="sc-value">"injured"</span>
+  }
+  <span class="sc-doc">3_rn_putri2526</span> {
+    full_name: <span class="sc-value">"Rina Nuraini"</span>,
+    jersey_number: <span class="sc-value">3</span>,
+    team_id: <span class="sc-value">"putri_2526"</span>
+  }
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 6 — MATCH MANAGEMENT FLOW
+═══════════════════════════════════════════ -->
+<div class="section" id="s6">
+  <div class="section-title"><span>06</span> Match Management Flow</div>
+
+  <div style="display:flex;gap:40px;flex-wrap:wrap">
+    <div style="flex:1;min-width:260px">
+      <h3>Dari Buat Pertandingan hingga Live</h3>
+      <div class="flow" style="gap:6px;align-items:flex-start">
+        <div class="node n-primary" style="width:100%">Manager: Buat pertandingan baru<sub>Pilih event, lawan, venue, tanggal</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Firestore: matches/{eventId}_vs_{lawan}_{tgl}<sub>status: scheduled</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-primary" style="width:100%">Manager: Konfigurasi timer<sub>Quarter duration, num periods, OT duration</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-coral" style="width:100%">Statistician: Buka detail pertandingan</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-coral" style="width:100%">Pilih 5 pemain starter dari roster aktif</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-coral" style="width:100%">Tap "MULAI PERTANDINGAN"</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Firestore batch write:<sub>status: ongoing, current_state: PRE_MATCH</sub><sub>timer_config_locked: true</sub><sub>lineups: is_on_court: true (5 starters)</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-flutter" style="width:100%">GoRouter navigasi ke Match Mode fullscreen<sub>Semua device listener otomatis menerima state</sub></div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:260px">
+      <h3>Setelah POST_MATCH</h3>
+      <div class="flow" style="gap:6px;align-items:flex-start">
+        <div class="node n-coral" style="width:100%">Statistician: Akhiri Q4 / OT</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Firestore: current_state: POST_MATCH<sub>Security Rules: semua write ke events dikunci</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Cloud Function onMatchFinished()<sub>Hitung statistik final dari event log</sub><sub>Update player_stats dengan nilai terverifikasi</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-teal" style="width:100%">status: finished</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-purple" style="width:100%">Halaman rekap pertandingan tersedia<sub>Box score, timeline event, perbandingan</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-blue" style="width:100%">Statistik masuk ke season aggregate<sub>Tersedia di Statistics Dashboard</sub></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 7 — MATCH MODE WIREFRAME
+═══════════════════════════════════════════ -->
+<div class="section" id="s7">
+  <div class="section-title"><span>07</span> Match Mode — Wireframe Fullscreen (Tablet Landscape)</div>
+  <p style="color:var(--muted);margin-bottom:20px">Flutter fullscreen page tanpa AppBar/NavigationBar. Timer menggunakan Firebase Server Timestamp sebagai acuan bersama semua device. Shot clock tidak tersedia.</p>
+
+  <div class="match-outer">
+    <!-- Header -->
+    <div class="match-header">
+      <div class="match-score-block">
+        <div class="match-label">BUDI UTAMA</div>
+        <div class="match-score">47</div>
+      </div>
+      <div class="match-timer-block">
+        <div class="match-label">Q3</div>
+        <div class="match-timer">06:24</div>
+        <div style="font-size:9px;color:#334155;margin-top:2px">Server Timestamp sync</div>
+      </div>
+      <div style="text-align:center;min-width:80px">
+        <div class="match-label">TIMEOUT</div>
+        <div style="color:#F1F5F9;font-size:14px;font-weight:700">2 / 2</div>
+      </div>
+      <div style="text-align:center;min-width:80px">
+        <div class="match-label">FOUL TIM</div>
+        <div style="color:#FCD34D;font-size:14px;font-weight:700">3</div>
+      </div>
+      <div class="match-timer-block">
+        <div class="match-label">LAWAN</div>
+        <div class="match-score">40</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;margin-left:8px">
+        <div style="width:8px;height:8px;border-radius:50%;background:#22C55E"></div>
+        <div style="font-size:9px;color:#22C55E">Firestore</div>
+      </div>
+    </div>
+
+    <!-- Body panels -->
+    <div class="match-body">
+      <!-- Left: Players -->
+      <div class="match-panel match-left">
+        <div class="match-panel-label">On Court</div>
+        <div class="player-card-match selected">
+          <div class="jersey">#7</div>
+          <div><div class="name">A. Rizki</div><div class="pos">PG</div></div>
+        </div>
+        <div class="player-card-match">
+          <div class="jersey">#4</div>
+          <div><div class="name">D. Pratama</div><div class="pos">C</div></div>
+        </div>
+        <div class="player-card-match">
+          <div class="jersey">#9</div>
+          <div><div class="name">F. Hidayat</div><div class="pos">SG</div></div>
+        </div>
+        <div class="player-card-match">
+          <div class="jersey">#15</div>
+          <div><div class="name">G. Wibowo</div><div class="pos">PF</div></div>
+        </div>
+        <div class="player-card-match">
+          <div class="jersey">#2</div>
+          <div><div class="name">H. Nugroho</div><div class="pos">SF</div></div>
+        </div>
+      </div>
+
+      <!-- Center: Tabs + Actions -->
+      <div class="match-center" style="background:#0F172A;padding:0">
+        <div class="tab-bar">
+          <div class="tab-item active">📥 Input Mode</div>
+          <div class="tab-item">📊 Live Player Stats</div>
+        </div>
+        <div style="padding:12px">
+          <div class="match-panel-label" style="color:#475569">Aksi — #7 A. Rizki (dipilih)</div>
+          <div class="action-grid">
+            <div class="action-btn action-scoring">+1<br><span style="font-size:9px">Free Throw</span></div>
+            <div class="action-btn action-scoring">+2<br><span style="font-size:9px">2PT Made</span></div>
+            <div class="action-btn action-scoring" style="background:#14532D;border-color:#166534">+3<br><span style="font-size:9px">3PT Made</span></div>
+            <div class="action-btn action-miss">M1<br><span style="font-size:9px">Miss FT</span></div>
+            <div class="action-btn action-stat">AST<br><span style="font-size:9px">Assist</span></div>
+            <div class="action-btn action-stat">TO<br><span style="font-size:9px">Turnover</span></div>
+            <div class="action-btn action-stat">STL<br><span style="font-size:9px">Steal</span></div>
+            <div class="action-btn action-stat">BLK<br><span style="font-size:9px">Block</span></div>
+            <div class="action-btn action-miss" style="background:#5c2d2d;border-color:#a33d3d">M2<br><span style="font-size:9px">Miss 2PT</span></div>
+            <div class="action-btn action-miss" style="background:#5c2d2d;border-color:#a33d3d">M3<br><span style="font-size:9px">Miss 3PT</span></div>
+            <div class="action-btn action-foul">FOUL<br><span style="font-size:9px">Personal</span></div>
+            <div class="action-btn action-stat">OREB<br><span style="font-size:9px">Off Reb</span></div>
+          </div>
+          <div class="action-undo">↩ Undo aksi terakhir</div>
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <button style="flex:1;background:#0F172A;border:1px solid #334155;color:#64748B;padding:8px;border-radius:6px;font-size:11px;cursor:pointer">▶ RESUME</button>
+            <button style="flex:1;background:#0F172A;border:1px solid #334155;color:#64748B;padding:8px;border-radius:6px;font-size:11px;cursor:pointer">⏸ PAUSE</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Opponent -->
+      <div class="match-panel match-right">
+        <div class="match-panel-label">Tim Lawan</div>
+        <div class="opp-btn action-scoring">+1</div>
+        <div class="opp-btn action-scoring">+2</div>
+        <div class="opp-btn action-scoring" style="background:#14532D;border-color:#166534;color:#86EFAC">+3</div>
+        <div class="opp-btn action-miss">MISS</div>
+        <div class="opp-btn action-foul">FOUL</div>
+        <div style="margin-top:12px;font-size:10px;color:#475569;text-align:center">Foul: 2</div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="timeline-col">
+        <div style="font-size:10px;color:#475569;letter-spacing:.6px;margin-bottom:8px">FIRESTORE EVENTS</div>
+        <div class="tl-item">Q3 06:24 <span class="tl-action">#7</span> <span class="tl-made">3PT MADE</span></div>
+        <div class="tl-item">Q3 05:31 <span class="tl-action">#4</span> ASSIST</div>
+        <div class="tl-item" style="color:#64748B">Q3 04:59 LAWAN <span class="tl-miss">2PT MADE</span></div>
+        <div class="tl-item">Q3 04:12 <span class="tl-action">#15</span> DREB</div>
+        <div class="tl-item">Q3 02:55 <span class="tl-action">#9</span> <span class="tl-made">2PT MADE</span></div>
+        <div class="tl-item">Q3 02:10 <span class="tl-action">#2</span> STL</div>
+      </div>
+    </div>
+
+    <!-- Bottom: Substitution -->
+    <div class="match-bottom">
+      <div style="font-size:11px;color:#94A3B8;min-width:80px">Substitusi</div>
+      <div class="sub-area">
+        <div class="sub-label">Pemain KELUAR</div>
+        <div class="sub-pills">
+          <div class="sub-pill out">#7 A. Rizki</div>
+          <div class="sub-pill">#4 D. Pratama</div>
+          <div class="sub-pill">#9 F. Hidayat</div>
+        </div>
+      </div>
+      <div style="font-size:18px;color:#475569">→</div>
+      <div class="sub-area">
+        <div class="sub-label">Pemain MASUK (bench)</div>
+        <div class="sub-pills">
+          <div class="sub-pill in">#11 B. Santoso</div>
+          <div class="sub-pill">#5 I. Permana</div>
+        </div>
+      </div>
+      <button style="background:#E8420A;color:white;padding:10px 20px;border-radius:6px;border:none;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap">Konfirmasi Sub</button>
+    </div>
+  </div>
+  <p style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center">Timer sinkron di semua device via Firebase Server Timestamp — tanpa shot clock</p>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 7b — COURT OVERLAY
+═══════════════════════════════════════════ -->
+<div class="section" id="court-overlay">
+  <div class="section-title"><span>07b</span> Court Overlay — Flutter CustomPainter</div>
+
+  <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+    <div style="background:#1a2535;border-radius:12px;padding:20px;flex-shrink:0">
+      <div style="font-size:11px;color:#64748B;text-align:center;margin-bottom:10px;letter-spacing:.6px">TAP LOKASI TEMBAKAN</div>
+      <svg width="300" height="280" viewBox="0 0 300 280" style="display:block;margin:0 auto">
+        <rect x="10" y="10" width="280" height="260" rx="4" fill="#0F172A" stroke="#334155" stroke-width="1.5"/>
+        <rect x="95" y="10" width="110" height="84" fill="#1E3A5F" stroke="#2563EB" stroke-width="1" opacity="0.7"/>
+        <ellipse cx="150" cy="94" rx="38" ry="28" fill="none" stroke="#2563EB" stroke-width="1" stroke-dasharray="4 3"/>
+        <path d="M 38 10 Q 38 185 150 210 Q 262 185 262 10" fill="none" stroke="#7C3AED" stroke-width="1.5"/>
+        <circle cx="150" cy="32" r="8" fill="none" stroke="#E8420A" stroke-width="2"/>
+        <circle cx="150" cy="32" r="2" fill="#E8420A"/>
+        <rect x="120" y="12" width="60" height="5" rx="1" fill="#475569"/>
+        <text x="150" y="58" text-anchor="middle" fill="#93C5FD" font-size="8" font-weight="bold">PAINT</text>
+        <text x="68" y="130" text-anchor="middle" fill="#A78BFA" font-size="7">MID-L</text>
+        <text x="150" y="145" text-anchor="middle" fill="#A78BFA" font-size="7">MID-C</text>
+        <text x="232" y="130" text-anchor="middle" fill="#A78BFA" font-size="7">MID-R</text>
+        <text x="28" y="50" text-anchor="middle" fill="#C4B5FD" font-size="7">CRN-L</text>
+        <text x="272" y="50" text-anchor="middle" fill="#C4B5FD" font-size="7">CRN-R</text>
+        <text x="55" y="195" text-anchor="middle" fill="#C4B5FD" font-size="7">WING-L</text>
+        <text x="245" y="195" text-anchor="middle" fill="#C4B5FD" font-size="7">WING-R</text>
+        <text x="150" y="235" text-anchor="middle" fill="#C4B5FD" font-size="7">CTR-3</text>
+        <circle cx="150" cy="55" r="6" fill="#22C55E" opacity="0.9"/>
+        <circle cx="128" cy="65" r="6" fill="#22C55E" opacity="0.9"/>
+        <circle cx="172" cy="60" r="6" fill="#EF4444" opacity="0.9"/>
+        <circle cx="80" cy="110" r="6" fill="#EF4444" opacity="0.9"/>
+        <circle cx="220" cy="100" r="6" fill="#22C55E" opacity="0.9"/>
+        <circle cx="55" cy="165" r="6" fill="#22C55E" opacity="0.9"/>
+        <circle cx="245" cy="158" r="6" fill="#EF4444" opacity="0.9"/>
+        <circle cx="150" cy="220" r="6" fill="#22C55E" opacity="0.9"/>
+        <circle cx="80" cy="110" r="14" fill="none" stroke="#E8420A" stroke-width="2" opacity="0.6"/>
+        <text x="80" y="134" text-anchor="middle" fill="#E8420A" font-size="8">tap!</text>
+      </svg>
+      <div style="display:flex;gap:12px;justify-content:center;margin-top:10px;font-size:10px;color:#64748B">
+        <span><span style="color:#22C55E">●</span> Made</span>
+        <span><span style="color:#EF4444">●</span> Miss</span>
+      </div>
+      <div style="margin-top:8px;text-align:center;font-size:10px;color:#475569">
+        <span class="tech-badge tb-flutter" style="font-size:9px">Flutter CustomPainter</span>
+        <span class="tech-badge tb-flutter" style="font-size:9px">GestureDetector</span>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:260px">
+      <h3>Alur Input Tembakan (Flutter)</h3>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="background:var(--light);border-radius:6px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start">
+          <div style="background:var(--primary);color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">1</div>
+          <div><strong>Tap tombol aksi</strong> (+2, +3, MISS 2, MISS 3) di ActionButtons widget</div>
+        </div>
+        <div style="background:var(--light);border-radius:6px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start">
+          <div style="background:var(--primary);color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">2</div>
+          <div><strong>CourtOverlay widget muncul</strong> — CustomPainter half-court dengan zona berwarna</div>
+        </div>
+        <div style="background:var(--light);border-radius:6px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start">
+          <div style="background:var(--accent);color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">3</div>
+          <div><strong>GestureDetector.onTapUp</strong> → konversi ke koordinat x/y (0.0–1.0)</div>
+        </div>
+        <div style="background:var(--light);border-radius:6px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start">
+          <div style="background:var(--teal);color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">4</div>
+          <div><strong>classifyZone(x, y)</strong> → deteksi zona otomatis dari koordinat</div>
+        </div>
+        <div style="background:var(--light);border-radius:6px;padding:10px 14px;display:flex;gap:10px;align-items:flex-start">
+          <div style="background:#7C3AED;color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">5</div>
+          <div><strong>Firestore batch write</strong> → event + player_stats increment + score update</div>
+        </div>
+      </div>
+
+      <h3 style="margin-top:20px">Shot Zones (9 Zona)</h3>
+      <table class="int-table">
+        <thead><tr><th>Kode</th><th>Label</th><th>Poin</th></tr></thead>
+        <tbody>
+          <tr><td style="font-family:monospace;font-size:10px">PAINT</td><td>Area Cat</td><td style="text-align:center">2</td></tr>
+          <tr><td style="font-family:monospace;font-size:10px">MEDIUM_LEFT</td><td>Medium Kiri</td><td style="text-align:center">2</td></tr>
+          <tr><td style="font-family:monospace;font-size:10px">MEDIUM_CENTER</td><td>Medium Tengah</td><td style="text-align:center">2</td></tr>
+          <tr><td style="font-family:monospace;font-size:10px">MEDIUM_RIGHT</td><td>Medium Kanan</td><td style="text-align:center">2</td></tr>
+          <tr><td style="font-family:monospace;font-size:10px">CORNER_LEFT</td><td>Corner Kiri</td><td style="text-align:center;color:#7C3AED;font-weight:700">3</td></tr>
+          <tr><td style="font-family:monospace;font-size:10px">CORNER_RIGHT</td><td>Corner Kanan</td><td style="text-align:center;color:#7C3AED;font-weight:700">3</td></tr>
+          <tr><td style="font-family:monospace;font-size:10px">WING_LEFT</td><td>Wing Kiri</td><td style="text-align:center;color:#7C3AED;font-weight:700">3</td></tr>
+          <tr><td style="font-family:monospace;font-size:10px">WING_RIGHT</td><td>Wing Kanan</td><td style="text-align:center;color:#7C3AED;font-weight:700">3</td></tr>
+          <tr><td style="font-family:monospace;font-size:10px">CENTER_3</td><td>Center 3PT</td><td style="text-align:center;color:#7C3AED;font-weight:700">3</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:8px;font-size:11px;color:var(--muted)">Free throw (+1/MISS 1): tidak menggunakan court overlay, tidak masuk heatmap.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 8 — STATE MACHINE
+═══════════════════════════════════════════ -->
+<div class="section" id="s8">
+  <div class="section-title"><span>08</span> Match State Machine</div>
+
+  <div class="state-flow" style="margin:20px 0 28px">
+    <div class="state-box special">PRE_MATCH</div>
+    <div class="state-arrow">→</div>
+    <div class="state-box active-q">Q1_ACTIVE</div>
+    <div class="state-arrow">→</div>
+    <div class="state-box break">Q1_BREAK</div>
+    <div class="state-arrow">→</div>
+    <div class="state-box active-q">Q2_ACTIVE</div>
+    <div class="state-arrow">→</div>
+    <div class="state-box break">HALFTIME</div>
+    <div class="state-arrow">→</div>
+    <div class="state-box active-q">Q3_ACTIVE</div>
+    <div class="state-arrow">→</div>
+    <div class="state-box break">Q3_BREAK</div>
+    <div class="state-arrow">→</div>
+    <div class="state-box active-q">Q4_ACTIVE</div>
+    <div class="state-arrow">→</div>
+    <div class="state-box break">CHECK_SCORE</div>
+    <div class="state-arrow">→</div>
+    <div class="state-box active-q" style="font-size:10px">OT_ACTIVE<br><span style="font-weight:400">(jika seri)</span></div>
+    <div class="state-arrow">→</div>
+    <div class="state-box terminal">POST_MATCH</div>
+  </div>
+
+  <h3>Aksi yang Diizinkan per State</h3>
+  <table class="int-table">
+    <thead>
+      <tr><th>State</th><th>Timer</th><th>Input Stats</th><th>Substitusi</th><th>Timeout</th><th>Undo</th><th>Firestore Write</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>PRE_MATCH</strong></td><td class="cross">✗</td><td class="cross">✗</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td><td>lineups only</td></tr>
+      <tr><td><strong>Q_ACTIVE / OT_ACTIVE</strong></td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td>events, stats, score, lineups</td></tr>
+      <tr><td><strong>Q_BREAK / HALFTIME</strong></td><td class="cross">✗</td><td class="cross">✗</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td><td>lineups only</td></tr>
+      <tr><td><strong>CHECK_SCORE</strong></td><td class="cross">✗</td><td class="cross">✗</td><td class="cross">✗</td><td class="cross">✗</td><td class="cross">✗</td><td>match state only</td></tr>
+      <tr><td><strong>POST_MATCH</strong></td><td class="cross">✗</td><td class="cross">✗ Dikunci</td><td class="cross">✗</td><td class="cross">✗</td><td class="cross">✗</td><td>❌ Security Rules block</td></tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top:16px;background:#0F172A;border-radius:8px;padding:14px;font-family:monospace;font-size:11px;color:#94A3B8">
+    <div style="color:#60A5FA;margin-bottom:6px">// lib/core/utils/match_state_machine.dart</div>
+    <div><span style="color:#F59E0B">const</span> validTransitions = {</div>
+    <div>&nbsp;&nbsp;<span style="color:#86EFAC">'PRE_MATCH'</span>: [<span style="color:#C4B5FD">'Q1_ACTIVE'</span>],</div>
+    <div>&nbsp;&nbsp;<span style="color:#86EFAC">'Q1_ACTIVE'</span>: [<span style="color:#C4B5FD">'Q1_BREAK'</span>],</div>
+    <div>&nbsp;&nbsp;... <span style="color:#475569">// semua transisi valid</span></div>
+    <div>&nbsp;&nbsp;<span style="color:#86EFAC">'POST_MATCH'</span>: [], <span style="color:#475569">// terminal</span></div>
+    <div>};</div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 9 — FIRESTORE SCHEMA
+═══════════════════════════════════════════ -->
+<div class="section" id="s9">
+  <div class="section-title"><span>09</span> Firestore Schema & Document ID Convention</div>
+
+  <div style="display:flex;gap:24px;flex-wrap:wrap">
+    <div style="flex:1;min-width:320px">
+      <h3>Struktur Collection Lengkap</h3>
+      <div class="schema-box">
+<span class="sc-collection">users/</span>
+  <span class="sc-doc">coach_budi</span>, <span class="sc-doc">manager_andi</span>, <span class="sc-doc">player_7_ar</span>
+
+<span class="sc-collection">teams/</span>
+  <span class="sc-doc">putra_2526</span>, <span class="sc-doc">putri_2526</span>
+
+<span class="sc-collection">players/</span>
+  <span class="sc-doc">7_ar_putra2526</span> <span class="sc-comment">// #7 Ahmad Rizki</span>
+  <span class="sc-doc">4_dp_putra2526</span> <span class="sc-comment">// #4 Dimas Pratama</span>
+  <span class="sc-doc">3_rn_putri2526</span> <span class="sc-comment">// #3 Rina Nuraini</span>
+
+<span class="sc-collection">events/</span>
+  <span class="sc-doc">porseni_kota_2526</span>
+  <span class="sc-doc">friendly_sman1_2526</span>
+
+<span class="sc-collection">matches/</span>
+  <span class="sc-doc">porseni_kota_2526_vs_sman1_20260315</span> {
+    current_state, home_score, opponent_score,
+    quarter_duration_minutes, num_periods,
+    timer_config_locked, ...
+  }
+  <span class="sc-sub">├── timer_state</span> <span class="sc-comment">// dokumen tunggal</span>
+  │   { is_running, seconds_at_start,
+  │     started_at (ServerTimestamp), quarter }
+  <span class="sc-sub">├── events/</span>
+  │   <span class="sc-doc">q1_001</span>, <span class="sc-doc">q1_002</span>, ..., <span class="sc-doc">q3_047</span>
+  <span class="sc-sub">├── player_stats/</span>
+  │   <span class="sc-doc">7_ar</span> { points, fg2_made, shot_zones, ... }
+  │   <span class="sc-doc">4_dp</span> { points, rebounds, ... }
+  <span class="sc-sub">└── lineups/</span>
+      <span class="sc-doc">7_ar</span> { is_on_court, total_seconds_played, ... }
+
+<span class="sc-collection">physical_test_sessions/</span>
+  <span class="sc-doc">beep_putra2526_20260120</span>
+  <span class="sc-sub">└── results/</span>
+      <span class="sc-doc">7_ar</span>, <span class="sc-doc">4_dp</span> { beep_level, beep_shuttle }
+
+<span class="sc-collection">injury_reports/</span>
+  <span class="sc-doc">7_ar_putra2526_20260205</span>
+
+<span class="sc-collection">training_sessions/</span>
+  <span class="sc-doc">putra2526_fisik_20260110</span>
+
+<span class="sc-collection">audit_logs/</span>
+  <span class="sc-comment">// auto-generated ID oleh Cloud Functions</span>
+      </div>
+    </div>
+    <div style="flex:1;min-width:260px">
+      <h3>Format ID Convention</h3>
+      <table class="int-table">
+        <tr><th>Collection</th><th>Format ID</th></tr>
+        <tr><td>users</td><td><code style="font-size:10px">{role}_{nama}</code></td></tr>
+        <tr><td>teams</td><td><code style="font-size:10px">{gender}_{tahun}</code></td></tr>
+        <tr><td>players</td><td><code style="font-size:10px">{jersey}_{inisial}_{team}</code></td></tr>
+        <tr><td>events</td><td><code style="font-size:10px">{tipe}_{nama}_{tahun}</code></td></tr>
+        <tr><td>matches</td><td><code style="font-size:10px">{eventId}_vs_{lawan}_{tgl}</code></td></tr>
+        <tr><td>match/events</td><td><code style="font-size:10px">q{quarter}_{urutan3digit}</code></td></tr>
+        <tr><td>match/player_stats</td><td><code style="font-size:10px">{jersey}_{inisial}</code></td></tr>
+        <tr><td>physical_test_sessions</td><td><code style="font-size:10px">{tipe}_{team}_{tgl}</code></td></tr>
+        <tr><td>injury_reports</td><td><code style="font-size:10px">{playerId}_{tgl}</code></td></tr>
+        <tr><td>training_sessions</td><td><code style="font-size:10px">{team}_{tipe}_{tgl}</code></td></tr>
+      </table>
+      <div style="margin-top:12px;background:var(--light);border-radius:8px;padding:12px;font-size:11px;color:var(--muted)">
+        <strong style="color:var(--text)">Aturan penamaan:</strong><br>
+        • Semua lowercase<br>
+        • Gunakan underscore (_), bukan spasi atau slash<br>
+        • Tahun ajaran 2025/2026 → <code>2526</code><br>
+        • Tanggal → <code>YYYYMMDD</code> (sortable)<br>
+        • Contoh: 15 Maret 2026 → <code>20260315</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 10 — INJURY & TRAINING
+═══════════════════════════════════════════ -->
+<div class="section" id="s10">
+  <div class="section-title"><span>10</span> Injury & Training Management Flow</div>
+
+  <div style="display:flex;gap:40px;flex-wrap:wrap">
+    <div style="flex:1;min-width:260px">
+      <h3>Alur Laporan Cedera</h3>
+      <div class="flow" style="gap:6px;align-items:flex-start">
+        <div class="node n-primary" style="width:100%">Coach / Manager: tap "+ Laporan Cedera"</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-gray" style="width:100%">Bottom Sheet: pilih pemain, tanggal, deskripsi<sub>Bagian tubuh, keparahan, estimasi pulih</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Upload foto ke Firebase Storage<sub>injuries/{id}/photo.jpg (opsional)</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Firestore: injury_reports/{playerId_tgl}<sub>player.status otomatis → injured</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div style="display:flex;flex-direction:column;gap:6px;width:100%">
+          <div class="node n-red" style="width:100%">Active Injury</div>
+          <div style="align-self:center;color:var(--muted);font-size:11px">↓ Coach update status</div>
+          <div class="node n-amber" style="width:100%">Recovery</div>
+          <div style="align-self:center;color:var(--muted);font-size:11px">↓ Coach update status</div>
+          <div class="node n-teal" style="width:100%">Cleared<sub>Cloud Function: player.status → active</sub></div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:260px">
+      <h3>Alur Jadwal Latihan</h3>
+      <div class="flow" style="gap:6px;align-items:flex-start">
+        <div class="node n-primary" style="width:100%">Manager: tap "+ Sesi Latihan"</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-gray" style="width:100%">Bottom Sheet: judul, tanggal, waktu, lokasi<sub>Tipe sesi, durasi, deskripsi</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Firestore: training_sessions/{team_tipe_tgl}</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Cloud Function: kirim FCM push notification<sub>ke semua user team tersebut</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-teal" style="width:100%">Jadwal muncul di kalender semua pengguna<sub>via Firestore real-time listener</sub></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 11 — PHYSICAL TEST
+═══════════════════════════════════════════ -->
+<div class="section" id="s11">
+  <div class="section-title"><span>11</span> Physical Test Flow</div>
+
+  <div style="display:flex;gap:40px;flex-wrap:wrap">
+    <div style="flex:1;min-width:260px">
+      <h3>Beep Test — Alur Batch 5 Pemain</h3>
+      <div class="flow" style="gap:6px;align-items:flex-start">
+        <div class="node n-primary" style="width:100%">Manager jadwalkan sesi Beep Test</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-gray" style="width:100%">Pilih 5 pemain dari roster untuk batch pertama</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-flutter" style="width:100%">UI: 5 BeepTestCard besar tanpa scroll<sub>Setiap kartu: nama, jersey, tombol PASS/FAIL</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div style="display:flex;gap:8px;width:100%">
+          <div class="node n-teal" style="flex:1">PASS → badge "Selesai"</div>
+          <div style="align-self:center;color:var(--muted)">atau</div>
+          <div class="node n-red" style="flex:1">FAIL → dialog input level & shuttle</div>
+        </div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Firestore: results/{jersey_inisial}<sub>{ beep_level, beep_shuttle, created_at }</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div style="display:flex;gap:8px;width:100%">
+          <div class="node n-blue" style="flex:1">Pilih 5 pemain berikutnya</div>
+          <div style="align-self:center;color:var(--muted)">atau</div>
+          <div class="node n-gray" style="flex:1">Stop Sesi → is_stopped_early: true</div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:260px">
+      <h3>T-Test & Sprint 20m — Individual Stopwatch</h3>
+      <div class="flow" style="gap:6px;align-items:flex-start">
+        <div class="node n-primary" style="width:100%">Manager jadwalkan sesi T-Test / Sprint</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-gray" style="width:100%">Pilih satu pemain dari daftar roster</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-flutter" style="width:100%">UI: StopwatchWidget besar<sub>Nama pemain aktif ditampilkan jelas</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-amber" style="width:100%">Tap MULAI → Dart Stopwatch berjalan<sub>Presisi milidetik</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-teal" style="width:100%">Tap SELESAI → waktu dicatat</div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div class="node n-firebase" style="width:100%">Firestore: results/{jersey_inisial}<sub>{ time_seconds: 9.87, created_at }</sub></div>
+        <div class="flow-arrow" style="align-self:center">↓</div>
+        <div style="display:flex;gap:8px;width:100%">
+          <div class="node n-blue" style="flex:1">Pilih pemain berikutnya</div>
+          <div style="align-self:center;color:var(--muted)">atau</div>
+          <div class="node n-gray" style="flex:1">Stop Sesi</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 12 — STATISTICS DASHBOARD
+═══════════════════════════════════════════ -->
+<div class="section" id="s12">
+  <div class="section-title"><span>12</span> Statistics Dashboard</div>
+
+  <div style="display:flex;gap:24px;flex-wrap:wrap">
+    <div style="flex:1;min-width:280px">
+      <h3>Sumber Data Statistik</h3>
+      <table class="int-table">
+        <tr><th>Tampilan</th><th>Sumber Data Firestore</th></tr>
+        <tr><td>Score real-time</td><td><code style="font-size:10px">matches/{id}.home_score</code></td></tr>
+        <tr><td>Live Player Stats (Tab 2)</td><td><code style="font-size:10px">matches/{id}/player_stats</code> stream</td></tr>
+        <tr><td>Box score post-match</td><td><code style="font-size:10px">matches/{id}/player_stats</code> (after Cloud Fn)</td></tr>
+        <tr><td>Shot chart heatmap</td><td><code style="font-size:10px">matches/{id}/events</code> (shot_x != null)</td></tr>
+        <tr><td>Season leaderboard</td><td>Aggregate player_stats per event</td></tr>
+        <tr><td>Physical test trend</td><td><code style="font-size:10px">physical_test_sessions/.../results</code></td></tr>
+        <tr><td>Audit log</td><td><code style="font-size:10px">audit_logs</code> (Cloud Functions write)</td></tr>
+      </table>
+
+      <h3 style="margin-top:20px">Formula FG% Terpisah</h3>
+      <div style="background:#0F172A;color:#93C5FD;border-radius:8px;padding:14px;font-family:monospace;font-size:11px;line-height:2">
+        <span style="color:#86EFAC">FT%</span>  = ft_made / ft_attempted<br>
+        <span style="color:#60A5FA">FG2%</span> = fg2_made / fg2_attempted<br>
+        <span style="color:#A78BFA">FG3%</span> = fg3_made / fg3_attempted<br>
+        <span style="color:#FCD34D">FG%</span>  = (fg2_made + fg3_made) / (fg2_att + fg3_att)<br>
+        <br>
+        <span style="color:#475569">// Semua dihitung di Flutter client</span><br>
+        <span style="color:#475569">// dari materialized player_stats dokumen</span>
+      </div>
+    </div>
+    <div style="flex:1;min-width:280px">
+      <h3>Shot Chart Heatmap (Flutter CustomPainter)</h3>
+      <svg width="280" height="200" viewBox="0 0 280 200" style="background:#0F172A;border-radius:8px;display:block">
+        <rect x="8" y="8" width="264" height="184" rx="4" fill="#0F172A" stroke="#334155"/>
+        <rect x="88" y="8" width="104" height="64" fill="#1E3A5F" stroke="#2563EB" opacity="0.5"/>
+        <path d="M 35 8 Q 35 140 140 158 Q 245 140 245 8" fill="none" stroke="#7C3AED" stroke-width="1.5"/>
+        <circle cx="140" cy="28" r="6" fill="none" stroke="#E8420A" stroke-width="1.5"/>
+        <!-- Zone overlays with FG% colors -->
+        <rect x="88" y="8" width="104" height="64" fill="#22C55E" opacity="0.25"/>
+        <text x="140" y="45" text-anchor="middle" fill="#86EFAC" font-size="9" font-weight="bold">Paint 80%</text>
+        <!-- Shot points -->
+        <circle cx="130" cy="35" r="5" fill="#22C55E" opacity="0.9"/>
+        <circle cx="155" cy="42" r="5" fill="#22C55E" opacity="0.9"/>
+        <circle cx="110" cy="50" r="5" fill="#EF4444" opacity="0.9"/>
+        <circle cx="75" cy="95" r="5" fill="#EF4444" opacity="0.9"/>
+        <circle cx="205" cy="88" r="5" fill="#22C55E" opacity="0.9"/>
+        <circle cx="50" cy="130" r="5" fill="#22C55E" opacity="0.9"/>
+        <circle cx="230" cy="125" r="5" fill="#EF4444" opacity="0.9"/>
+        <circle cx="140" cy="165" r="5" fill="#22C55E" opacity="0.9"/>
+        <!-- Zone labels -->
+        <text x="75" y="110" text-anchor="middle" fill="#FCD34D" font-size="8">37.5%</text>
+        <text x="205" y="105" text-anchor="middle" fill="#FCD34D" font-size="8">50%</text>
+        <text x="50" y="145" text-anchor="middle" fill="#86EFAC" font-size="8">75%</text>
+        <text x="230" y="140" text-anchor="middle" fill="#EF4444" font-size="8">25%</text>
+        <text x="140" y="178" text-anchor="middle" fill="#86EFAC" font-size="8">Center 3: 60%</text>
+      </svg>
+      <div style="margin-top:8px;display:flex;gap:12px;font-size:10px;color:var(--muted)">
+        <span><span style="color:#22C55E">●</span> Made</span>
+        <span><span style="color:#EF4444">●</span> Miss</span>
+        <span><span style="color:#86EFAC">■</span> FG% tinggi (≥60%)</span>
+        <span><span style="color:#EF4444">■</span> Rendah (&lt;40%)</span>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)">
+        Dirender menggunakan <span class="tech-badge tb-flutter" style="font-size:9px">Flutter CustomPainter</span><br>
+        Data dari Firestore: <code style="font-size:10px">events</code> dengan <code style="font-size:10px">shot_x != null</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     SECTION 13 — INTERACTION RULES
+═══════════════════════════════════════════ -->
+<div class="section" id="s13">
+  <div class="section-title"><span>13</span> Interaction Design Rules</div>
+
+  <div style="display:flex;gap:40px;flex-wrap:wrap">
+    <div style="flex:1;min-width:260px">
+      <h3>Prinsip UX Match Mode (Flutter)</h3>
+      <table class="int-table">
+        <tr><th>Aturan</th><th>Detail</th></tr>
+        <tr><td>Max 2 tap untuk aksi kritis</td><td>Pilih pemain → tap aksi. Selesai.</td></tr>
+        <tr><td>Touch target min 44×44dp</td><td>Semua tombol aksi di Match Mode</td></tr>
+        <tr><td>Visual feedback &lt; 100ms</td><td>Riverpod state update segera; Firestore write async</td></tr>
+        <tr><td>Konfirmasi wajib</td><td>Transisi state, undo, substitusi — pakai showDialog()</td></tr>
+        <tr><td>Koneksi status selalu terlihat</td><td>Indikator Firestore sync di header — tidak boleh tersembunyi</td></tr>
+        <tr><td>Tidak ada scroll di Match Mode</td><td>Semua elemen fit dalam satu layar landscape tablet</td></tr>
+        <tr><td>Shot clock tidak ada</td><td>Sistem untuk penggunaan internal — bukan kompetisi resmi</td></tr>
+      </table>
+
+      <h3 style="margin-top:24px">Prinsip UX Dashboard (Flutter)</h3>
+      <table class="int-table">
+        <tr><th>Aturan</th><th>Detail</th></tr>
+        <tr><td>Bottom sheet untuk form</td><td>Gunakan showModalBottomSheet() bukan full-screen form</td></tr>
+        <tr><td>Snackbar untuk feedback</td><td>Sukses/gagal via ScaffoldMessenger.showSnackBar()</td></tr>
+        <tr><td>Destructive action: 2 langkah</td><td>Hapus/nonaktifkan perlu showDialog() konfirmasi</td></tr>
+        <tr><td>Loading state</td><td>CircularProgressIndicator atau Shimmer skeleton</td></tr>
+        <tr><td>Empty state informatif</td><td>Gambar + teks + CTA button, bukan halaman kosong</td></tr>
+        <tr><td>Pull-to-refresh</td><td>RefreshIndicator untuk halaman list</td></tr>
+      </table>
+    </div>
+
+    <div style="flex:1;min-width:260px">
+      <h3>Firebase Offline Behavior</h3>
+      <table class="int-table">
+        <tr><th>Kondisi</th><th>Behavior Flutter + Firestore</th></tr>
+        <tr><td>Koneksi baik</td><td>Write langsung ke Firestore server; listener realtime</td></tr>
+        <tr><td>Koneksi terputus</td><td>Write ke Firestore local cache; UI tetap update</td></tr>
+        <tr><td>Indikator offline</td><td>ConnectionStatus widget di header Match Mode: 🔴 Offline</td></tr>
+        <tr><td>Koneksi kembali</td><td>Firestore otomatis sync cache ke server; listener resume</td></tr>
+        <tr><td>Conflict resolution</td><td>Last-write-wins (Firestore default)</td></tr>
+      </table>
+
+      <h3 style="margin-top:20px">Platform-Specific Notes</h3>
+      <table class="int-table">
+        <tr><th>Platform</th><th>Catatan Khusus</th></tr>
+        <tr><td>Android</td><td>Min SDK 26; build APK untuk distribusi internal</td></tr>
+        <tr><td>iOS</td><td>Min iOS 14; perlu Apple Developer account; TestFlight untuk testing</td></tr>
+        <tr><td>Flutter Web</td><td>Deploy ke Firebase Hosting; optimal di Chrome/Safari; Match Mode di tablet browser</td></tr>
+        <tr><td>Tablet Match Mode</td><td>Min 10 inch landscape; Flutter responsive layout via LayoutBuilder</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div style="background:var(--primary);color:#9BB5D0;padding:24px 80px;font-size:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+  <span>UI/UX Flow v2.0 &nbsp;·&nbsp; Flutter + Firebase &nbsp;·&nbsp; Budi Utama Basketball Management System</span>
+  <span>SMA Budi Utama Yogyakarta &nbsp;·&nbsp; Juni 2026</span>
+</div>
+
+</body>
+</html>
