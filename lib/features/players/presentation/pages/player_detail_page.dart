@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:budiutama_basketball/core/theme/app_colors.dart';
 import 'package:budiutama_basketball/core/utils/physical_format.dart';
 import 'package:budiutama_basketball/features/players/data/models/player_model.dart';
 import 'package:budiutama_basketball/features/players/domain/providers/players_provider.dart';
@@ -11,15 +12,10 @@ import 'package:budiutama_basketball/features/players/presentation/widgets/add_e
 import 'package:budiutama_basketball/features/players/presentation/widgets/player_status_badge.dart';
 import 'package:budiutama_basketball/shared/widgets/confirm_dialog.dart';
 
-/// Halaman detail pemain — menampilkan profil lengkap, statistik ringkasan,
-/// dan aksi manajemen (edit, ubah status, nonaktifkan).
-///
-/// Accessible oleh Coach (read-only), Manager (full access),
-/// dan Player sendiri (read-only data milik sendiri).
 class PlayerDetailPage extends ConsumerWidget {
   final String playerId;
   final String teamId;
-  final String role; // role pengguna yang sedang login
+  final String role;
 
   const PlayerDetailPage({
     super.key,
@@ -32,7 +28,6 @@ class PlayerDetailPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Ambil data pemain dari stream real-time (selalu segar dari Firestore)
     final playersAsync = ref.watch(playersStreamProvider(teamId));
 
     return playersAsync.when(
@@ -54,7 +49,7 @@ class PlayerDetailPage extends ConsumerWidget {
         }
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF4F6F8),
+          backgroundColor: AppColors.background,
           body: CustomScrollView(
             slivers: [
               _buildAppBar(context, ref, player),
@@ -64,12 +59,15 @@ class PlayerDetailPage extends ConsumerWidget {
                   child: Column(
                     children: [
                       _buildInfoCard(player),
-                      const SizedBox(height: 12),
-                      _buildPhysicalCard(player),
+                      if (player.heightCm != null || player.weightKg != null) ...[
+                        const SizedBox(height: 12),
+                        _buildPhysicalCard(player),
+                      ],
                       if (_canEdit) ...[
                         const SizedBox(height: 12),
                         _buildActionsCard(context, ref, player),
                       ],
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
@@ -84,9 +82,9 @@ class PlayerDetailPage extends ConsumerWidget {
   SliverAppBar _buildAppBar(
       BuildContext context, WidgetRef ref, PlayerModel player) {
     return SliverAppBar(
-      expandedHeight: 240,
+      expandedHeight: 220,
       pinned: true,
-      backgroundColor: const Color(0xFF1A3A5C),
+      backgroundColor: AppColors.navy,
       foregroundColor: Colors.white,
       actions: _canEdit
           ? [
@@ -111,28 +109,23 @@ class PlayerDetailPage extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 48),
-                _buildAvatar(player, radius: 44),
-                const SizedBox(height: 12),
+                _buildAvatar(player, radius: 40),
+                const SizedBox(height: 10),
                 Text(
                   player.fullName,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 6,
                   children: [
                     _buildJerseyChip(player.jerseyNumber),
-                    const SizedBox(width: 8),
-                    ...player.positions.map(
-                      (pos) => Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: _buildPositionChip(pos),
-                      ),
-                    ),
+                    ...player.positions.map((pos) => _buildPositionChip(pos)),
                     PlayerStatusBadge(status: player.status),
                   ],
                 ),
@@ -164,35 +157,90 @@ class PlayerDetailPage extends ConsumerWidget {
                 color: Color(0xFF1A3A5C),
               ),
             ),
-            const SizedBox(height: 12),
-            _infoRow('Nomor Jersey', '#${player.jerseyNumber}'),
-            _infoRow(
-              'Posisi',
-              player.positions
-                  .map(_positionLabel)
-                  .join(' · '),
+            const SizedBox(height: 14),
+            // Nomor Jersey
+            _infoTile(
+              icon: Icons.tag,
+              label: 'Nomor Jersey',
+              value: '#${player.jerseyNumber}',
             ),
-            if (player.dateOfBirth != null)
-              _infoRow(
-                'Tanggal Lahir',
-                '${DateFormat('dd MMM yyyy').format(player.dateOfBirth!)} '
-                '(${calculateAge(player.dateOfBirth!)} th)',
+            const Divider(height: 1),
+            // Posisi
+            _infoTile(
+              icon: Icons.sports_basketball_outlined,
+              label: 'Posisi',
+              value: player.positions.map(_positionLabel).join(' · '),
+            ),
+            const Divider(height: 1),
+            // Tim - Fix #4: formatted team name
+            _infoTile(
+              icon: Icons.group_outlined,
+              label: 'Tim',
+              value: _formatTeamName(player.teamId),
+            ),
+            const Divider(height: 1),
+            // Tanggal lahir
+            if (player.dateOfBirth != null) ...[
+              _infoTile(
+                icon: Icons.cake_outlined,
+                label: 'Tanggal Lahir',
+                value:
+                    '${DateFormat('dd MMM yyyy').format(player.dateOfBirth!)} '
+                    '(${calculateAge(player.dateOfBirth!)} tahun)',
               ),
-            _infoRow('Tim', player.teamId),
-            _infoRow('Status', _statusLabel(player.status)),
+              const Divider(height: 1),
+            ],
+            // Status
+            _infoTile(
+              icon: Icons.circle_outlined,
+              label: 'Status',
+              value: _statusLabel(player.status),
+              valueColor: _statusColor(player.status),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPhysicalCard(PlayerModel player) {
-    if (player.heightCm == null &&
-        player.weightKg == null &&
-        player.dateOfBirth == null) {
-      return const SizedBox.shrink();
-    }
+  Widget _infoTile({
+    required IconData icon,
+    required String label,
+    required String value,
+    Color? valueColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF6B7A8D)),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF6B7A8D),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: valueColor ?? const Color(0xFF1C2B3A),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
+  Widget _buildPhysicalCard(PlayerModel player) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -212,35 +260,79 @@ class PlayerDetailPage extends ConsumerWidget {
                 color: Color(0xFF1A3A5C),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 if (player.heightCm != null)
-                  Expanded(
-                    child: _physicalStat(
-                      'Tinggi',
-                      '${formatPhysicalValue(player.heightCm!)} cm',
-                    ),
+                  _physicalStatBox(
+                    label: 'Tinggi',
+                    value: '${formatPhysicalValue(player.heightCm!)}',
+                    unit: 'cm',
+                    icon: Icons.height,
                   ),
                 if (player.weightKg != null)
-                  Expanded(
-                    child: _physicalStat(
-                      'Berat',
-                      '${formatPhysicalValue(player.weightKg!)} kg',
-                    ),
+                  _physicalStatBox(
+                    label: 'Berat',
+                    value: '${formatPhysicalValue(player.weightKg!)}',
+                    unit: 'kg',
+                    icon: Icons.monitor_weight_outlined,
                   ),
                 if (player.heightCm != null && player.weightKg != null)
-                  Expanded(
-                    child: _physicalStat(
-                      'BMI',
-                      calculateBmi(player.heightCm!, player.weightKg!)!
-                          .toStringAsFixed(1),
-                    ),
+                  _physicalStatBox(
+                    label: 'BMI',
+                    value: calculateBmi(player.heightCm!, player.weightKg!)!
+                        .toStringAsFixed(1),
+                    unit: 'kg/m²',
+                    icon: Icons.accessibility_new,
                   ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _physicalStatBox({
+    required String label,
+    required String value,
+    required String unit,
+    required IconData icon,
+  }) {
+    return Container(
+      width: 90,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppColors.navySoft,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 20, color: AppColors.navy),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1A3A5C),
+            ),
+          ),
+          Text(
+            unit,
+            style: const TextStyle(fontSize: 10, color: Color(0xFF6B7A8D)),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Color(0xFF6B7A8D),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -253,60 +345,72 @@ class PlayerDetailPage extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: Color(0xFFC8D6E5)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Column(
-          children: [
-            // Ubah status
-            if (player.status == 'active')
-              ListTile(
-                leading: const Icon(Icons.healing_outlined,
-                    color: Color(0xFFBA7517)),
-                title: const Text('Tandai Cedera'),
-                subtitle: const Text('Ubah status pemain menjadi cedera'),
-                onTap: () => _updateStatus(context, ref, player, 'injured'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 14, 16, 8),
+            child: Text(
+              'Aksi Manajemen',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: Color(0xFF1A3A5C),
               ),
-            if (player.status == 'injured')
-              ListTile(
-                leading: const Icon(Icons.check_circle_outline,
-                    color: Color(0xFF3B6D11)),
-                title: const Text('Tandai Pulih'),
-                subtitle: const Text('Kembalikan status pemain menjadi aktif'),
-                onTap: () => _updateStatus(context, ref, player, 'active'),
-              ),
-            if (player.status != 'inactive') ...[
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.person_off_outlined,
-                    color: Color(0xFFA32D2D)),
-                title: const Text(
-                  'Nonaktifkan Pemain',
-                  style: TextStyle(color: Color(0xFFA32D2D)),
-                ),
-                subtitle:
-                    const Text('Pemain tidak akan muncul di roster aktif'),
-                onTap: () => _confirmDeactivate(context, ref, player),
-              ),
-            ],
-            if (player.status == 'inactive') ...[
-              const Divider(height: 1),
-              ListTile(
-                leading:
-                    const Icon(Icons.person_outline, color: Color(0xFF3B6D11)),
-                title: const Text(
-                  'Aktifkan Kembali',
-                  style: TextStyle(color: Color(0xFF3B6D11)),
-                ),
-                onTap: () => _updateStatus(context, ref, player, 'active'),
-              ),
-            ],
+            ),
+          ),
+          const Divider(height: 1),
+          if (player.status == 'active')
+            ListTile(
+              leading: const Icon(Icons.healing_outlined,
+                  color: Color(0xFFBA7517)),
+              title: const Text('Tandai Cedera'),
+              subtitle: const Text('Ubah status pemain menjadi cedera'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _updateStatus(context, ref, player, 'injured'),
+            ),
+          if (player.status == 'injured') ...[
+            ListTile(
+              leading: const Icon(Icons.check_circle_outline,
+                  color: Color(0xFF3B6D11)),
+              title: const Text('Tandai Pulih'),
+              subtitle: const Text('Kembalikan status pemain menjadi aktif'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _updateStatus(context, ref, player, 'active'),
+            ),
           ],
-        ),
+          if (player.status != 'inactive') ...[
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.person_off_outlined,
+                  color: Color(0xFFA32D2D)),
+              title: const Text(
+                'Nonaktifkan Pemain',
+                style: TextStyle(color: Color(0xFFA32D2D)),
+              ),
+              subtitle:
+                  const Text('Pemain tidak akan muncul di roster aktif'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _confirmDeactivate(context, ref, player),
+            ),
+          ],
+          if (player.status == 'inactive') ...[
+            const Divider(height: 1),
+            ListTile(
+              leading:
+                  const Icon(Icons.person_outline, color: Color(0xFF3B6D11)),
+              title: const Text(
+                'Aktifkan Kembali',
+                style: TextStyle(color: Color(0xFF3B6D11)),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _updateStatus(context, ref, player, 'active'),
+            ),
+          ],
+        ],
       ),
     );
   }
-
-  // ── ACTIONS ──────────────────────────────────────────────────────────────
 
   void _showEditSheet(BuildContext context, PlayerModel player) {
     showModalBottomSheet(
@@ -357,32 +461,33 @@ class PlayerDetailPage extends ConsumerWidget {
       if (context.mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pemain berhasil dinonaktifkan.'),
-          ),
+          const SnackBar(content: Text('Pemain berhasil dinonaktifkan.')),
         );
       }
     }
   }
 
-  // ── HELPER WIDGETS ────────────────────────────────────────────────────────
-
   Widget _buildAvatar(PlayerModel player, {required double radius}) {
     if (player.photoBase64 != null && player.photoBase64!.isNotEmpty) {
       try {
         final raw = player.photoBase64!;
-        final bytes =
-            base64Decode(raw.contains(',') ? raw.split(',').last : raw);
+        final base64Str = raw.contains(',') ? raw.split(',').last : raw;
+        final bytes = base64Decode(base64Str);
         return ClipOval(
           child: Image.memory(
             bytes,
             width: radius * 2,
             height: radius * 2,
             fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _initialsAvatar(player, radius),
           ),
         );
       } catch (_) {}
     }
+    return _initialsAvatar(player, radius);
+  }
+
+  Widget _initialsAvatar(PlayerModel player, double radius) {
     final initials = player.fullName
         .trim()
         .split(' ')
@@ -415,7 +520,7 @@ class PlayerDetailPage extends ConsumerWidget {
         style: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w700,
-          fontSize: 13,
+          fontSize: 12,
         ),
       ),
     );
@@ -423,7 +528,7 @@ class PlayerDetailPage extends ConsumerWidget {
 
   Widget _buildPositionChip(String position) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(20),
@@ -433,85 +538,60 @@ class PlayerDetailPage extends ConsumerWidget {
         style: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w600,
-          fontSize: 12,
+          fontSize: 11,
         ),
       ),
-    );
-  }
-
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: const TextStyle(color: Color(0xFF6B7A8D), fontSize: 13),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _physicalStat(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF1A3A5C),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11, color: Color(0xFF6B7A8D)),
-        ),
-      ],
     );
   }
 
   String _positionLabel(String pos) {
     switch (pos) {
-      case 'PG':
-        return 'Point Guard (PG)';
-      case 'SG':
-        return 'Shooting Guard (SG)';
-      case 'SF':
-        return 'Small Forward (SF)';
-      case 'PF':
-        return 'Power Forward (PF)';
-      case 'C':
-        return 'Center (C)';
-      default:
-        return pos;
+      case 'PG': return 'Point Guard (PG)';
+      case 'SG': return 'Shooting Guard (SG)';
+      case 'SF': return 'Small Forward (SF)';
+      case 'PF': return 'Power Forward (PF)';
+      case 'C':  return 'Center (C)';
+      default:   return pos;
     }
+  }
+
+  /// Fix #4: Format team ID to readable name
+  /// e.g. "sma_putra_2526" → "SMA Putra"
+  /// e.g. "putra_2526" → "SMA Putra"
+  String _formatTeamName(String teamId) {
+    final id = teamId.toLowerCase();
+
+    String level = 'SMA';
+    if (id.contains('smp')) level = 'SMP';
+
+    String gender = 'Putra';
+    if (id.contains('putri') || id.contains('female')) gender = 'Putri';
+
+    // Extract academic year
+    final yearMatch = RegExp(r'(\d{2})(\d{2})').firstMatch(id);
+    if (yearMatch != null) {
+      final yearStr = '20${yearMatch.group(1)}/20${yearMatch.group(2)}';
+      return '$level $gender $yearStr';
+    }
+
+    return '$level $gender';
   }
 
   String _statusLabel(String status) {
     switch (status) {
-      case 'active':
-        return 'Aktif';
-      case 'injured':
-        return 'Cedera';
-      case 'inactive':
-        return 'Non-Aktif';
-      default:
-        return status;
+      case 'active':   return 'Aktif';
+      case 'injured':  return 'Cedera';
+      case 'inactive': return 'Non-Aktif';
+      default:         return status;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'active':   return const Color(0xFF27500A);
+      case 'injured':  return const Color(0xFF633806);
+      case 'inactive': return const Color(0xFF444441);
+      default:         return const Color(0xFF1C2B3A);
     }
   }
 }

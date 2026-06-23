@@ -6,10 +6,6 @@ import 'package:budiutama_basketball/core/constants/firestore_paths.dart';
 import 'package:budiutama_basketball/core/utils/team_sort.dart';
 import 'package:budiutama_basketball/shared/models/team_model.dart';
 
-/// Provider untuk team ID yang sedang aktif di halaman Players.
-/// Default: SMA Putra tahun ajaran berjalan.
-final activeTeamIdProvider = StateProvider<String>((ref) => 'sma_putra_2526');
-
 /// Provider untuk stream semua tim aktif.
 final teamsStreamProvider = StreamProvider<List<TeamModel>>((ref) {
   return FirebaseFirestore.instance
@@ -21,57 +17,48 @@ final teamsStreamProvider = StreamProvider<List<TeamModel>>((ref) {
           .toList());
 });
 
-/// Widget toggle untuk memilih salah satu dari empat tim:
-/// SMA Putra, SMA Putri, SMP Putra, SMP Putri.
+/// Provider untuk team ID yang sedang aktif.
+/// Tetap String (non-nullable) — default ke string kosong '',
+/// diselesaikan menjadi tim pertama di level widget/page.
+final activeTeamIdProvider = StateProvider<String>((ref) => '');
+
+/// Widget toggle untuk memilih salah satu dari empat tim.
 class TeamToggleWidget extends ConsumerWidget {
-  /// Daftar tim yang tersedia (biasanya dari Firestore collection `teams`).
   final List<TeamModel>? teams;
 
   const TeamToggleWidget({super.key, this.teams});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activeTeamId = ref.watch(activeTeamIdProvider);
     final providedTeams = teams;
 
     if (providedTeams == null) {
       final teamsAsync = ref.watch(teamsStreamProvider);
       return teamsAsync.maybeWhen(
-        data: (loadedTeams) => _TeamToggleBody(
-          teams: loadedTeams,
-          activeTeamId: activeTeamId,
-          onTeamSelected: (teamId) =>
-              ref.read(activeTeamIdProvider.notifier).state = teamId,
-        ),
+        data: (loadedTeams) => _buildBody(ref, loadedTeams),
         orElse: () => const SizedBox.shrink(),
       );
     }
 
-    return _TeamToggleBody(
-      teams: providedTeams,
-      activeTeamId: activeTeamId,
-      onTeamSelected: (teamId) =>
-          ref.read(activeTeamIdProvider.notifier).state = teamId,
-    );
+    return _buildBody(ref, providedTeams);
   }
-}
 
-class _TeamToggleBody extends StatelessWidget {
-  final List<TeamModel> teams;
-  final String activeTeamId;
-  final ValueChanged<String> onTeamSelected;
+  Widget _buildBody(WidgetRef ref, List<TeamModel> teamList) {
+    if (teamList.isEmpty) return const SizedBox.shrink();
 
-  const _TeamToggleBody({
-    required this.teams,
-    required this.activeTeamId,
-    required this.onTeamSelected,
-  });
+    final sorted = sortTeamsForDisplay(teamList);
+    final activeTeamId = ref.watch(activeTeamIdProvider);
 
-  @override
-  Widget build(BuildContext context) {
-    if (teams.isEmpty) return const SizedBox.shrink();
+    // Resolve effective ID — use first team when nothing selected yet
+    final effectiveId =
+        activeTeamId.isEmpty ? sorted.first.id : activeTeamId;
 
-    final sortedTeams = sortTeamsForDisplay(teams);
+    // Sync provider to first team if still empty
+    if (activeTeamId.isEmpty) {
+      Future.microtask(() {
+        ref.read(activeTeamIdProvider.notifier).state = sorted.first.id;
+      });
+    }
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -82,19 +69,18 @@ class _TeamToggleBody extends StatelessWidget {
       ),
       child: Row(
         children: [
-          for (var i = 0; i < sortedTeams.length; i++) ...[
+          for (var i = 0; i < sorted.length; i++) ...[
             if (i > 0)
               Container(
-                width: 1,
-                height: 28,
-                color: const Color(0xFFC8D6E5),
-              ),
+                  width: 1, height: 28, color: const Color(0xFFC8D6E5)),
             Expanded(
               child: _TeamTab(
-                label: sortedTeams[i].name,
-                teamId: sortedTeams[i].id,
-                isActive: activeTeamId == sortedTeams[i].id,
-                onTap: () => onTeamSelected(sortedTeams[i].id),
+                label: sorted[i].name,
+                teamId: sorted[i].id,
+                isActive: effectiveId == sorted[i].id,
+                onTap: () =>
+                    ref.read(activeTeamIdProvider.notifier).state =
+                        sorted[i].id,
               ),
             ),
           ],

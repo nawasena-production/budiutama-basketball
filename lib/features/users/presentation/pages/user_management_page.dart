@@ -8,13 +8,7 @@ import 'package:budiutama_basketball/shared/widgets/app_page_scaffold.dart';
 import 'package:budiutama_basketball/shared/widgets/confirm_dialog.dart';
 import 'package:budiutama_basketball/shared/widgets/empty_state_widget.dart';
 
-/// Halaman Account Management — khusus Manager (SRS FR-AUTH-06).
-///
-/// Menampilkan semua akun pengguna, filter per role, dan aksi:
-/// buat akun baru, ubah role, nonaktifkan/aktifkan akun.
-///
-/// Semua aksi yang mengubah Firebase Auth (Custom Claims, disable user)
-/// dilakukan via Cloud Functions callable — TIDAK langsung dari client.
+/// Halaman Account Management — khusus Manager.
 class UserManagementPage extends ConsumerWidget {
   const UserManagementPage({super.key});
 
@@ -42,7 +36,6 @@ class UserManagementPage extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          // Filter chips
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             color: Colors.white,
@@ -61,8 +54,9 @@ class UserManagementPage extends ConsumerWidget {
                           .state = f.value,
                       selectedColor: const Color(0xFF1A3A5C),
                       labelStyle: TextStyle(
-                        color:
-                            isSelected ? Colors.white : const Color(0xFF1C2B3A),
+                        color: isSelected
+                            ? Colors.white
+                            : const Color(0xFF1C2B3A),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -74,8 +68,6 @@ class UserManagementPage extends ConsumerWidget {
             ),
           ),
           const Divider(height: 1),
-
-          // Daftar user
           Expanded(
             child: usersAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -141,58 +133,74 @@ class _UserCard extends ConsumerWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color:
-              user.isActive ? const Color(0xFFC8D6E5) : const Color(0xFFE24B4A),
+          color: user.isActive
+              ? const Color(0xFFC8D6E5)
+              : const Color(0xFFE24B4A),
         ),
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: CircleAvatar(
           backgroundColor: roleColor.withValues(alpha: 0.12),
           child: Text(
-            user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?',
-            style: TextStyle(color: roleColor, fontWeight: FontWeight.bold),
+            user.fullName.isNotEmpty
+                ? user.fullName[0].toUpperCase()
+                : '?',
+            style:
+                TextStyle(color: roleColor, fontWeight: FontWeight.bold),
           ),
         ),
         title: Row(
           children: [
             Expanded(
-              child: Text(user.fullName,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 13)),
+              child: Text(
+                user.fullName,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600, fontSize: 13),
+              ),
             ),
             if (!user.isActive)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFCEBEB),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text('Nonaktif',
-                    style: TextStyle(
-                        fontSize: 9,
-                        color: Color(0xFF791F1F),
-                        fontWeight: FontWeight.w600)),
+                child: const Text(
+                  'Nonaktif',
+                  style: TextStyle(
+                      fontSize: 9,
+                      color: Color(0xFF791F1F),
+                      fontWeight: FontWeight.w600),
+                ),
               ),
           ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(user.email,
-                style: const TextStyle(fontSize: 11, color: Color(0xFF6B7A8D))),
+            Text(
+              user.email,
+              style: const TextStyle(
+                  fontSize: 11, color: Color(0xFF6B7A8D)),
+            ),
             const SizedBox(height: 4),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: roleColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(roleLabel,
-                  style: TextStyle(
-                      fontSize: 10,
-                      color: roleColor,
-                      fontWeight: FontWeight.w600)),
+              child: Text(
+                roleLabel,
+                style: TextStyle(
+                    fontSize: 10,
+                    color: roleColor,
+                    fontWeight: FontWeight.w600),
+              ),
             ),
           ],
         ),
@@ -212,7 +220,8 @@ class _UserCard extends ConsumerWidget {
               const PopupMenuItem(
                 value: 'deactivate',
                 child: Row(children: [
-                  Icon(Icons.block, size: 16, color: Color(0xFFA32D2D)),
+                  Icon(Icons.block,
+                      size: 16, color: Color(0xFFA32D2D)),
                   SizedBox(width: 8),
                   Text('Nonaktifkan',
                       style: TextStyle(color: Color(0xFFA32D2D))),
@@ -233,7 +242,8 @@ class _UserCard extends ConsumerWidget {
             const PopupMenuItem(
               value: 'delete',
               child: Row(children: [
-                Icon(Icons.delete_forever, size: 16, color: Color(0xFFA32D2D)),
+                Icon(Icons.delete_forever,
+                    size: 16, color: Color(0xFFA32D2D)),
                 SizedBox(width: 8),
                 Text('Hapus Akun',
                     style: TextStyle(color: Color(0xFFA32D2D))),
@@ -253,56 +263,46 @@ class _UserCard extends ConsumerWidget {
         await _showChangeRoleDialog(context, ref);
         break;
       case 'deactivate':
-        await _confirmAndRun(
-          context,
+        await _doAction(
+          context: context,
           title: 'Nonaktifkan Akun?',
           content:
               '${user.fullName} tidak akan bisa login sampai diaktifkan kembali.',
           confirmLabel: 'Nonaktifkan',
           isDestructive: true,
-          action: () => ref
+          onConfirmed: () => ref
               .read(userActionsProvider.notifier)
               .deactivateUser(docId: user.id, uid: user.uid),
+          successMsg: 'Akun ${user.fullName} berhasil dinonaktifkan.',
         );
         break;
       case 'reactivate':
-        await _confirmAndRun(
-          context,
+        await _doAction(
+          context: context,
           title: 'Aktifkan Kembali?',
           content: '${user.fullName} akan bisa login kembali.',
           confirmLabel: 'Aktifkan',
-          action: () => ref
+          onConfirmed: () => ref
               .read(userActionsProvider.notifier)
               .reactivateUser(docId: user.id, uid: user.uid),
+          successMsg: 'Akun ${user.fullName} berhasil diaktifkan.',
         );
         break;
       case 'delete':
-        await _confirmAndRun(
-          context,
-          title: 'Hapus Akun Permanen?',
-          content:
-              'Akun ${user.fullName} akan dihapus dari Firebase Auth dan daftar pengguna. Data roster/statistik pemain tidak ikut dihapus.',
-          confirmLabel: 'Hapus Akun',
-          isDestructive: true,
-          successMessage: 'Akun berhasil dihapus permanen.',
-          failureMessage: 'Gagal menghapus akun.',
-          action: () => ref
-              .read(userActionsProvider.notifier)
-              .deleteUser(docId: user.id, uid: user.uid),
-        );
+        await _deleteUser(context, ref);
         break;
     }
   }
 
-  Future<void> _confirmAndRun(
-    BuildContext context, {
+  /// Generic action helper — shows confirm dialog, runs action, shows result.
+  Future<void> _doAction({
+    required BuildContext context,
     required String title,
     required String content,
     required String confirmLabel,
-    required Future<bool> Function() action,
+    required Future<bool> Function() onConfirmed,
+    required String successMsg,
     bool isDestructive = false,
-    String successMessage = 'Berhasil diperbarui.',
-    String failureMessage = 'Gagal memperbarui akun.',
   }) async {
     final confirmed = await showConfirmDialog(
       context,
@@ -311,18 +311,104 @@ class _UserCard extends ConsumerWidget {
       confirmLabel: confirmLabel,
       isDestructive: isDestructive,
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
 
-    final success = await action();
+    bool? success;
+    String? errorMsg;
+
+    try {
+      success = await onConfirmed();
+    } catch (e) {
+      errorMsg = e.toString();
+    }
+
     if (!context.mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(success ? successMessage : failureMessage),
-        backgroundColor:
-            success ? const Color(0xFF3B6D11) : Colors.red.shade700,
+    if (errorMsg != null) {
+      _showSnack(context, 'Gagal: $errorMsg', isError: true);
+    } else if (success == true) {
+      _showSnack(context, successMsg);
+    } else {
+      _showSnack(
+        context,
+        'Operasi gagal. Pastikan Cloud Functions aktif dan coba lagi.',
+        isError: true,
+      );
+    }
+  }
+
+  /// Delete dengan dua langkah konfirmasi.
+  Future<void> _deleteUser(BuildContext context, WidgetRef ref) async {
+    // Step 1
+    final step1 = await showConfirmDialog(
+      context,
+      title: 'Hapus Akun Permanen?',
+      content:
+          'Akun ${user.fullName} (${user.email}) akan dihapus permanen.\n\n'
+          'Data roster dan statistik pemain tidak ikut dihapus.',
+      confirmLabel: 'Lanjutkan',
+      isDestructive: true,
+    );
+    if (step1 != true || !context.mounted) return;
+
+    // Step 2 — dialog khusus tanpa showConfirmDialog helper
+    final step2 = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Konfirmasi Akhir'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Tindakan ini TIDAK DAPAT DIBATALKAN.',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, color: Colors.red),
+            ),
+            const SizedBox(height: 8),
+            Text('Hapus akun "${user.fullName}" sekarang?'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus Permanen'),
+          ),
+        ],
       ),
     );
+    if (step2 != true || !context.mounted) return;
+
+    // Execute
+    bool? success;
+    String? errorMsg;
+    try {
+      success = await ref
+          .read(userActionsProvider.notifier)
+          .deleteUser(docId: user.id, uid: user.uid);
+    } catch (e) {
+      errorMsg = e.toString();
+    }
+
+    if (!context.mounted) return;
+
+    if (errorMsg != null) {
+      _showSnack(context, 'Gagal menghapus: $errorMsg', isError: true);
+    } else if (success == true) {
+      _showSnack(context, 'Akun ${user.fullName} berhasil dihapus.');
+    } else {
+      _showSnack(
+        context,
+        'Gagal menghapus akun. Pastikan Cloud Functions "deleteUser" sudah di-deploy.',
+        isError: true,
+      );
+    }
   }
 
   Future<void> _showChangeRoleDialog(
@@ -343,12 +429,20 @@ class _UserCard extends ConsumerWidget {
               DropdownButton<String>(
                 value: selectedRole,
                 isExpanded: true,
-                items: _roleLabels.entries
-                    .map((e) =>
-                        DropdownMenuItem(value: e.key, child: Text(e.value)))
-                    .toList(),
+                items: const [
+                  DropdownMenuItem(
+                      value: 'manager', child: Text('Manager')),
+                  DropdownMenuItem(value: 'coach', child: Text('Coach')),
+                  DropdownMenuItem(
+                      value: 'statistician',
+                      child: Text('Statistician')),
+                  DropdownMenuItem(
+                      value: 'player', child: Text('Player')),
+                ],
                 onChanged: (v) {
-                  if (v != null) setDialogState(() => selectedRole = v);
+                  if (v != null) {
+                    setDialogState(() => selectedRole = v);
+                  }
                 },
               ),
             ],
@@ -367,23 +461,41 @@ class _UserCard extends ConsumerWidget {
       ),
     );
 
-    if (confirmed == true && selectedRole != user.role) {
-      final success =
+    if (confirmed != true || selectedRole == user.role) return;
+    if (!context.mounted) return;
+
+    bool? success;
+    String? errorMsg;
+    try {
+      success =
           await ref.read(userActionsProvider.notifier).updateUserRole(
                 docId: user.id,
                 uid: user.uid,
                 newRole: selectedRole,
               );
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success
-              ? 'Role berhasil diubah. Pengguna perlu login ulang.'
-              : 'Gagal mengubah role.'),
-          backgroundColor:
-              success ? const Color(0xFF3B6D11) : Colors.red.shade700,
-        ),
-      );
+    } catch (e) {
+      errorMsg = e.toString();
     }
+
+    if (!context.mounted) return;
+    if (errorMsg != null) {
+      _showSnack(context, 'Gagal: $errorMsg', isError: true);
+    } else if (success == true) {
+      _showSnack(
+          context, 'Role berhasil diubah. Pengguna perlu login ulang.');
+    } else {
+      _showSnack(context, 'Gagal mengubah role.', isError: true);
+    }
+  }
+
+  void _showSnack(BuildContext context, String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor:
+            isError ? Colors.red.shade700 : const Color(0xFF3B6D11),
+        duration: Duration(seconds: isError ? 5 : 3),
+      ),
+    );
   }
 }

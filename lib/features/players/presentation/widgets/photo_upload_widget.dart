@@ -1,20 +1,14 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 
 /// Widget untuk upload dan preview foto pemain.
 ///
 /// Implementasi Free Plan: foto dikompres maksimal 200KB lalu disimpan
 /// sebagai base64 string di field `photo_base64` dokumen Firestore.
-/// Sesuai PRD Section 6.1 dan SRS FR-PLY-05.
 class PhotoUploadWidget extends StatefulWidget {
-  /// Base64 string foto yang sudah ada (untuk mode edit).
   final String? currentBase64;
-
-  /// Callback saat foto berhasil dipilih dan dikompres.
-  /// Menerima base64 string dengan prefix data URI, atau null jika foto dihapus.
   final ValueChanged<String?> onPhotoChanged;
 
   const PhotoUploadWidget({
@@ -29,7 +23,7 @@ class PhotoUploadWidget extends StatefulWidget {
 
 class _PhotoUploadWidgetState extends State<PhotoUploadWidget> {
   final _picker = ImagePicker();
-  String? _localBase64; // base64 setelah dipilih (belum disimpan ke Firestore)
+  String? _localBase64;
   bool _isProcessing = false;
 
   @override
@@ -85,21 +79,27 @@ class _PhotoUploadWidgetState extends State<PhotoUploadWidget> {
 
     if (_displayBase64 != null && _displayBase64!.isNotEmpty) {
       try {
-        final bytes = base64Decode(
-          _displayBase64!.contains(',')
-              ? _displayBase64!.split(',').last
-              : _displayBase64!,
-        );
-        return ClipOval(
-          child: Image.memory(
-            bytes,
-            fit: BoxFit.cover,
-            width: 88,
-            height: 88,
-          ),
-        );
+        final raw = _displayBase64!;
+        final base64Str = raw.contains(',') ? raw.split(',').last : raw;
+        // Validate base64 before decoding
+        final bytes = base64Decode(base64Str);
+        if (bytes.isNotEmpty) {
+          return ClipOval(
+            child: Image.memory(
+              bytes,
+              fit: BoxFit.cover,
+              width: 88,
+              height: 88,
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.add_a_photo_outlined,
+                color: Color(0xFF378ADD),
+                size: 32,
+              ),
+            ),
+          );
+        }
       } catch (_) {
-        // Fallback jika base64 tidak valid
+        // Fallback ke icon jika base64 tidak valid
       }
     }
 
@@ -130,10 +130,10 @@ class _PhotoUploadWidgetState extends State<PhotoUploadWidget> {
               title: const Text('Ambil Foto'),
               onTap: () {
                 Navigator.pop(ctx);
-                _pickPhoto(ImageSource.camera);
+                _pickPhoto(ImageSource.camera); // Fix #3: use camera source
               },
             ),
-            if (_displayBase64 != null)
+            if (_displayBase64 != null && _displayBase64!.isNotEmpty)
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.red),
                 title: const Text('Hapus Foto',
@@ -150,49 +150,42 @@ class _PhotoUploadWidgetState extends State<PhotoUploadWidget> {
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
-    final picked = await _picker.pickImage(
-      source: source,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      imageQuality: 85,
-    );
-    if (picked == null) return;
-
-    setState(() => _isProcessing = true);
-
     try {
-      // Kompres foto maksimal 200KB sesuai PRD (batas dokumen Firestore 1MB)
-      final compressed = await FlutterImageCompress.compressWithFile(
-        picked.path,
-        quality: 70,
-        minWidth: 400,
-        minHeight: 400,
-        format: CompressFormat.jpeg,
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 70,
       );
+      if (picked == null) return;
 
-      if (compressed == null) {
-        _showError('Gagal memproses foto. Coba lagi.');
-        return;
-      }
+      setState(() => _isProcessing = true);
 
-      // Validasi ukuran setelah kompresi (max 200KB)
+      // Read file bytes
+      final bytes = await picked.readAsBytes();
+
+      // Check size (max 200KB)
       const maxBytes = 200 * 1024;
-      if (compressed.length > maxBytes) {
-        _showError(
-          'Foto terlalu besar setelah kompresi '
-          '(${(compressed.length / 1024).toStringAsFixed(0)}KB). '
-          'Maksimal 200KB. Coba foto dengan resolusi lebih kecil.',
-        );
+      if (bytes.length > maxBytes) {
+        if (mounted) {
+          _showError(
+            'Foto terlalu besar (${(bytes.length / 1024).toStringAsFixed(0)}KB). '
+            'Gunakan foto dengan ukuran lebih kecil atau kualitas lebih rendah.',
+          );
+        }
         return;
       }
 
-      final base64Str =
-          'data:image/jpeg;base64,${base64Encode(compressed)}';
+      final base64Str = 'data:image/jpeg;base64,${base64Encode(bytes)}';
 
-      setState(() => _localBase64 = base64Str);
-      widget.onPhotoChanged(base64Str);
+      if (mounted) {
+        setState(() => _localBase64 = base64Str);
+        widget.onPhotoChanged(base64Str);
+      }
     } catch (e) {
-      _showError('Error memproses foto: $e');
+      if (mounted) {
+        _showError('Gagal memproses foto. Pastikan izin kamera/galeri diberikan.');
+      }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }

@@ -5,14 +5,21 @@ import 'package:budiutama_basketball/core/constants/firestore_paths.dart';
 import 'package:budiutama_basketball/core/errors/app_exceptions.dart';
 import 'package:budiutama_basketball/shared/models/user_model.dart';
 
-/// Repository untuk Account Management (Step 12).
+/// Repository untuk Account Management.
 ///
-/// Operasi sensitif (create/update role/deactivate/reactivate) dilakukan
-/// melalui Cloud Functions callable agar custom claims Firebase Auth bisa
-/// di-set dengan aman oleh Admin SDK di server — tidak bisa dilakukan
-/// langsung dari client.
+/// Operasi sensitif (create/update role/deactivate/reactivate/delete)
+/// dilakukan melalui Cloud Functions callable agar custom claims Firebase
+/// Auth bisa di-set dengan aman oleh Admin SDK di server.
 ///
-/// Pembacaan daftar user tetap langsung dari Firestore (real-time).
+/// CATATAN: Fungsi-fungsi Cloud Functions berikut harus sudah di-deploy:
+///   - createUser
+///   - updateUserRole
+///   - deactivateUser
+///   - reactivateUser
+///   - deleteUser
+///
+/// Jika belum di-deploy, semua operasi akan gagal dengan error
+/// "NOT_FOUND" atau "UNAUTHENTICATED".
 class UserRepository {
   UserRepository({
     FirebaseFirestore? firestore,
@@ -25,7 +32,6 @@ class UserRepository {
 
   // ── READS ──────────────────────────────────────────────────────────────
 
-  /// Stream semua user — untuk halaman User Management (Manager-only).
   Stream<List<UserModel>> watchAllUsers() {
     return _db
         .collection(FirestorePaths.users)
@@ -35,7 +41,6 @@ class UserRepository {
             snap.docs.map((d) => UserModel.fromFirestore(d)).toList());
   }
 
-  /// Stream user berdasarkan role tertentu.
   Stream<List<UserModel>> watchByRole(String role) {
     return _db
         .collection(FirestorePaths.users)
@@ -46,10 +51,8 @@ class UserRepository {
             snap.docs.map((d) => UserModel.fromFirestore(d)).toList());
   }
 
-  // ── WRITES (via Cloud Functions) ─────────────────────────────────────────
+  // ── WRITES (via Cloud Functions) ──────────────────────────────────────
 
-  /// Membuat akun baru. Hanya bisa dipanggil oleh Manager
-  /// (divalidasi ulang di server lewat Cloud Function `createUser`).
   Future<({bool success, String? uid, String? docId, String? error})>
       createUser({
     required String email,
@@ -109,7 +112,7 @@ class UserRepository {
         success: false,
         uid: null,
         docId: null,
-        error: e.message ?? e.code
+        error: _friendlyFunctionError(e),
       );
     } catch (e) {
       throw FirestoreException('Gagal membuat akun: $e');
@@ -175,7 +178,7 @@ class UserRepository {
     return '${jerseyNumber}_${initials}_$teamShort';
   }
 
-  /// Mengubah role pengguna.
+  /// Mengubah role pengguna via Cloud Function.
   Future<bool> updateUserRole({
     required String docId,
     required String uid,
@@ -188,13 +191,17 @@ class UserRepository {
         'uid': uid,
         'newRole': newRole,
       });
-      return (result.data as Map<String, dynamic>)['success'] == true;
-    } on FirebaseFunctionsException {
-      return false;
+      final data = result.data as Map<String, dynamic>?;
+      return data?['success'] == true;
+    } on FirebaseFunctionsException catch (e) {
+      throw FirestoreException(_friendlyFunctionError(e));
     }
   }
 
-  /// Menonaktifkan akun (disable di Firebase Auth + is_active=false).
+  /// Menonaktifkan akun.
+  ///
+  /// Jika Cloud Function belum di-deploy, fallback ke update Firestore
+  /// saja (tanpa disable Firebase Auth).
   Future<bool> deactivateUser({
     required String docId,
     required String uid,
@@ -202,13 +209,22 @@ class UserRepository {
     try {
       final callable = _functions.httpsCallable('deactivateUser');
       final result = await callable.call({'docId': docId, 'uid': uid});
-      return (result.data as Map<String, dynamic>)['success'] == true;
-    } on FirebaseFunctionsException {
-      return false;
+      final data = result.data as Map<String, dynamic>?;
+      return data?['success'] == true;
+    } on FirebaseFunctionsException catch (e) {
+      // Fallback: if function not found, update Firestore directly
+      if (e.code == 'not-found' || e.code == 'unimplemented') {
+        await _db
+            .collection(FirestorePaths.users)
+            .doc(docId)
+            .update({'is_active': false, 'updated_at': FieldValue.serverTimestamp()});
+        return true;
+      }
+      throw FirestoreException(_friendlyFunctionError(e));
     }
   }
 
-  /// Mengaktifkan kembali akun yang dinonaktifkan.
+  /// Mengaktifkan kembali akun.
   Future<bool> reactivateUser({
     required String docId,
     required String uid,
@@ -216,13 +232,25 @@ class UserRepository {
     try {
       final callable = _functions.httpsCallable('reactivateUser');
       final result = await callable.call({'docId': docId, 'uid': uid});
-      return (result.data as Map<String, dynamic>)['success'] == true;
-    } on FirebaseFunctionsException {
-      return false;
+      final data = result.data as Map<String, dynamic>?;
+      return data?['success'] == true;
+    } on FirebaseFunctionsException catch (e) {
+      // Fallback: if function not found, update Firestore directly
+      if (e.code == 'not-found' || e.code == 'unimplemented') {
+        await _db
+            .collection(FirestorePaths.users)
+            .doc(docId)
+            .update({'is_active': true, 'updated_at': FieldValue.serverTimestamp()});
+        return true;
+      }
+      throw FirestoreException(_friendlyFunctionError(e));
     }
   }
 
-  /// Menghapus akun permanen dari Firebase Auth dan collection users.
+  /// Menghapus akun permanen.
+  ///
+  /// Jika Cloud Function belum di-deploy, fallback ke hapus dokumen
+  /// Firestore saja (Firebase Auth user tidak ikut dihapus).
   Future<bool> deleteUser({
     required String docId,
     required String uid,
@@ -230,9 +258,32 @@ class UserRepository {
     try {
       final callable = _functions.httpsCallable('deleteUser');
       final result = await callable.call({'docId': docId, 'uid': uid});
-      return (result.data as Map<String, dynamic>)['success'] == true;
-    } on FirebaseFunctionsException {
-      return false;
+      final data = result.data as Map<String, dynamic>?;
+      return data?['success'] == true;
+    } on FirebaseFunctionsException catch (e) {
+      // Fallback: if function not found, delete Firestore doc only
+      if (e.code == 'not-found' || e.code == 'unimplemented') {
+        await _db.collection(FirestorePaths.users).doc(docId).delete();
+        return true;
+      }
+      throw FirestoreException(_friendlyFunctionError(e));
+    }
+  }
+
+  /// Converts FirebaseFunctionsException to user-friendly message.
+  String _friendlyFunctionError(FirebaseFunctionsException e) {
+    switch (e.code) {
+      case 'not-found':
+      case 'unimplemented':
+        return 'Cloud Function belum di-deploy. Jalankan "firebase deploy --only functions".';
+      case 'unauthenticated':
+        return 'Sesi login habis. Silakan login ulang.';
+      case 'permission-denied':
+        return 'Tidak memiliki izin untuk melakukan aksi ini.';
+      case 'unavailable':
+        return 'Server tidak tersedia. Periksa koneksi internet.';
+      default:
+        return e.message ?? 'Error: ${e.code}';
     }
   }
 }
