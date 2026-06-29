@@ -24,7 +24,9 @@ final authStateProvider = StreamProvider<User?>((ref) {
 });
 
 final userRoleProvider = FutureProvider<String?>((ref) async {
-  return ref.watch(authRepositoryProvider).getRole();
+  final user = await ref.watch(authStateProvider.selectAsync((user) => user));
+  if (user == null) return null;
+  return ref.watch(authRepositoryProvider).getRoleForUser(user);
 });
 
 final pendingOtpProvider = StateProvider<PendingOtp?>((ref) => null);
@@ -37,7 +39,11 @@ final pendingOtpProvider = StateProvider<PendingOtp?>((ref) => null);
 /// Digunakan sebagai nilai field `created_by` saat membuat event,
 /// training session, match, injury report, dll.
 final currentUserDocIdProvider = FutureProvider<String?>((ref) async {
-  return ref.watch(authRepositoryProvider).getCurrentUserDocumentId();
+  final user = await ref.watch(authStateProvider.selectAsync((user) => user));
+  if (user == null) return null;
+  return ref
+      .watch(authRepositoryProvider)
+      .getCurrentUserDocumentIdForUid(user.uid);
 });
 
 /// UID Firebase Auth dari pengguna yang sedang login.

@@ -37,6 +37,7 @@ class _AddInjuryBottomSheetState extends ConsumerState<AddInjuryBottomSheet> {
   final _bodyPartController = TextEditingController();
   final _notesController = TextEditingController();
   final _recoveryDaysController = TextEditingController();
+  final _playerSearchController = TextEditingController();
 
   PlayerModel? _selectedPlayer;
   DateTime _injuryDate = DateTime.now();
@@ -61,6 +62,7 @@ class _AddInjuryBottomSheetState extends ConsumerState<AddInjuryBottomSheet> {
     _bodyPartController.dispose();
     _notesController.dispose();
     _recoveryDaysController.dispose();
+    _playerSearchController.dispose();
     super.dispose();
   }
 
@@ -99,7 +101,7 @@ class _AddInjuryBottomSheetState extends ConsumerState<AddInjuryBottomSheet> {
               ),
               const SizedBox(height: 20),
 
-              // Pilih Pemain (dropdown)
+              // Pilih Pemain
               _buildLabel('Pemain *'),
               playersAsync.when(
                 loading: () => const LinearProgressIndicator(),
@@ -109,22 +111,7 @@ class _AddInjuryBottomSheetState extends ConsumerState<AddInjuryBottomSheet> {
                   final eligible = players
                       .where((p) => p.status != 'injured')
                       .toList();
-                  return DropdownButtonFormField<PlayerModel>(
-                    value: _selectedPlayer,
-                    decoration: _inputDecoration('Pilih pemain'),
-                    items: eligible
-                        .map((p) => DropdownMenuItem(
-                              value: p,
-                              child: Text(
-                                '#${p.jerseyNumber} ${p.fullName}',
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ))
-                        .toList(),
-                    onChanged: (p) => setState(() => _selectedPlayer = p),
-                    validator: (_) =>
-                        _selectedPlayer == null ? 'Pilih pemain terlebih dahulu' : null,
-                  );
+                  return _buildSearchablePlayerPicker(eligible);
                 },
               ),
               const SizedBox(height: 14),
@@ -301,6 +288,90 @@ class _AddInjuryBottomSheetState extends ConsumerState<AddInjuryBottomSheet> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSearchablePlayerPicker(List<PlayerModel> players) {
+    final query = _playerSearchController.text.trim().toLowerCase();
+    final filtered = query.isEmpty
+        ? players
+        : players.where((player) {
+            return player.fullName.toLowerCase().contains(query) ||
+                player.jerseyNumber.toString().contains(query) ||
+                player.positionsDisplay.toLowerCase().contains(query);
+          }).toList();
+
+    return FormField<PlayerModel>(
+      validator: (_) =>
+          _selectedPlayer == null ? 'Pilih pemain terlebih dahulu' : null,
+      builder: (field) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _playerSearchController,
+              decoration: _inputDecoration('Cari nama / nomor jersey'),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 190),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF4F6F8),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: field.hasError
+                      ? Colors.red
+                      : const Color(0xFFC8D6E5),
+                ),
+              ),
+              child: filtered.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text(
+                        'Pemain tidak ditemukan.',
+                        style:
+                            TextStyle(fontSize: 12, color: Color(0xFF6B7A8D)),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final player = filtered[index];
+                        return RadioListTile<PlayerModel>(
+                          dense: true,
+                          value: player,
+                          groupValue: _selectedPlayer,
+                          title: Text(
+                            '#${player.jerseyNumber} ${player.fullName}',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          subtitle: player.positionsDisplay.isEmpty
+                              ? null
+                              : Text(
+                                  player.positionsDisplay,
+                                  style: const TextStyle(fontSize: 11),
+                                ),
+                          onChanged: (value) {
+                            setState(() => _selectedPlayer = value);
+                            field.didChange(value);
+                          },
+                        );
+                      },
+                    ),
+            ),
+            if (field.hasError)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, left: 12),
+                child: Text(
+                  field.errorText!,
+                  style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 

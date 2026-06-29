@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onInjuryStatusChanged = exports.onMatchEventCreated = exports.onMatchFinished = exports.deleteUser = exports.reactivateUser = exports.deactivateUser = exports.updateUserRole = exports.createUser = void 0;
+exports.onInjuryStatusChanged = exports.onMatchEventCreated = exports.onMatchFinished = exports.deleteUser = exports.transferPlayerTeam = exports.reactivateUser = exports.deactivateUser = exports.updateUserRole = exports.createUser = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
@@ -47,19 +47,20 @@ exports.createUser = functions.https.onCall(async (data, context) => {
     if (((_b = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'manager') {
         throw new functions.https.HttpsError('permission-denied', 'Hanya Manager yang bisa membuat akun baru');
     }
-    const { email, password, fullName, role, teamId, jerseyNumber, positions, position, heightCm, weightKg, dateOfBirth, } = data;
+    const { email, password, fullName, role: rawRole, teamId, jerseyNumber, positions, position, heightCm, weightKg, dateOfBirth, } = data;
     const validPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
     const playerPositions = Array.isArray(positions)
         ? positions
         : position
             ? [position]
             : [];
+    const role = normalizeRole(rawRole);
     if (!email || !password || !fullName || !role) {
-        throw new functions.https.HttpsError('invalid-argument', 'Email, password, nama lengkap, dan role wajib diisi');
+        throw new functions.https.HttpsError('invalid-argument', 'Email, password, nama lengkap, dan role valid wajib diisi');
     }
-    const needsTeam = role === 'player' || role === 'statistician';
+    const needsTeam = role === 'player';
     if (needsTeam && !teamId) {
-        throw new functions.https.HttpsError('invalid-argument', 'Player dan Statistician wajib memilih tim');
+        throw new functions.https.HttpsError('invalid-argument', 'Player wajib memilih tim');
     }
     if (role === 'player') {
         if (typeof jerseyNumber !== 'number' || jerseyNumber < 0 || jerseyNumber > 99) {
@@ -163,15 +164,21 @@ exports.createUser = functions.https.onCall(async (data, context) => {
 // ── updateUserRole: ubah role pengguna ───────────────────────────────
 // Sesuai Dev Guide Step 12.2.
 exports.updateUserRole = functions.https.onCall(async (data, context) => {
-    var _a, _b;
+    var _a, _b, _c, _d;
     if (((_b = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'manager') {
         throw new functions.https.HttpsError('permission-denied', 'Permission denied');
     }
     const { docId, uid, newRole } = data;
-    await auth.setCustomUserClaims(uid, { role: newRole });
+    const normalizedRole = normalizeRole(newRole);
+    if (!normalizedRole) {
+        throw new functions.https.HttpsError('invalid-argument', 'Role tidak valid');
+    }
+    const userDoc = docId ? await db.collection('users').doc(docId).get() : null;
+    const teamId = (_d = (_c = userDoc === null || userDoc === void 0 ? void 0 : userDoc.data()) === null || _c === void 0 ? void 0 : _c.team_id) !== null && _d !== void 0 ? _d : null;
+    await auth.setCustomUserClaims(uid, { role: normalizedRole, team_id: teamId });
     if (docId) {
         await db.collection('users').doc(docId).update({
-            role: newRole,
+            role: normalizedRole,
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
         });
     }
@@ -186,7 +193,10 @@ exports.deactivateUser = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('permission-denied', 'Permission denied');
     }
     const { docId, uid } = data;
-    await auth.updateUser(uid, { disabled: true });
+    if (!docId || !uid) {
+        throw new functions.https.HttpsError('invalid-argument', 'docId dan uid wajib diisi');
+    }
+    await updateAuthDisabled(uid, true);
     if (docId) {
         await db.collection('users').doc(docId).update({
             is_active: false,
@@ -208,7 +218,10 @@ exports.reactivateUser = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('permission-denied', 'Permission denied');
     }
     const { docId, uid } = data;
-    await auth.updateUser(uid, { disabled: false });
+    if (!docId || !uid) {
+        throw new functions.https.HttpsError('invalid-argument', 'docId dan uid wajib diisi');
+    }
+    await updateAuthDisabled(uid, false);
     if (docId) {
         await db.collection('users').doc(docId).update({
             is_active: true,
@@ -216,6 +229,99 @@ exports.reactivateUser = functions.https.onCall(async (data, context) => {
         });
     }
     return { success: true };
+});
+// ── transferPlayerTeam: pindahkan pemain SMP → SMA ──────────────────
+exports.transferPlayerTeam = functions.https.onCall(async (data, context) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    if (((_b = (_a = context.auth) === null || _a === void 0 ? void 0 : _a.token) === null || _b === void 0 ? void 0 : _b.role) !== 'manager') {
+        throw new functions.https.HttpsError('permission-denied', 'Hanya Manager yang bisa memindahkan pemain antar tim');
+    }
+    const { playerId, targetTeamId } = data;
+    if (!playerId || !targetTeamId) {
+        throw new functions.https.HttpsError('invalid-argument', 'playerId dan targetTeamId wajib diisi');
+    }
+    const playerSnap = await db.collection('players').doc(playerId).get();
+    if (!playerSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Pemain tidak ditemukan');
+    }
+    const player = playerSnap.data();
+    const currentTeamId = player.team_id;
+    if (!currentTeamId.toLowerCase().includes('smp')) {
+        throw new functions.https.HttpsError('failed-precondition', 'Hanya pemain tim SMP yang bisa dipindahkan ke SMA');
+    }
+    if (!targetTeamId.toLowerCase().includes('sma')) {
+        throw new functions.https.HttpsError('invalid-argument', 'Tim tujuan harus tim SMA');
+    }
+    const currentGender = currentTeamId.toLowerCase().includes('putri')
+        ? 'putri'
+        : 'putra';
+    const targetGender = targetTeamId.toLowerCase().includes('putri')
+        ? 'putri'
+        : 'putra';
+    if (currentGender !== targetGender) {
+        throw new functions.https.HttpsError('invalid-argument', 'Tim tujuan harus sesuai gender pemain (Putra/Putri)');
+    }
+    const targetTeamSnap = await db.collection('teams').doc(targetTeamId).get();
+    if (!targetTeamSnap.exists) {
+        throw new functions.https.HttpsError('not-found', `Tim tujuan "${targetTeamId}" tidak ditemukan`);
+    }
+    const jerseyNumber = player.jersey_number;
+    const fullName = player.full_name;
+    const userDocId = player.user_id;
+    const jerseySnap = await db
+        .collection('players')
+        .where('team_id', '==', targetTeamId)
+        .where('jersey_number', '==', jerseyNumber)
+        .limit(1)
+        .get();
+    if (!jerseySnap.empty) {
+        throw new functions.https.HttpsError('already-exists', `Nomor jersey #${jerseyNumber} sudah digunakan di tim SMA`);
+    }
+    const newPlayerId = generatePlayerId(jerseyNumber, fullName, targetTeamId);
+    const newPlayerSnap = await db.collection('players').doc(newPlayerId).get();
+    if (newPlayerSnap.exists) {
+        throw new functions.https.HttpsError('already-exists', 'Pemain dengan ID yang sama sudah ada di tim SMA');
+    }
+    const batch = db.batch();
+    batch.set(db.collection('players').doc(newPlayerId), {
+        user_id: userDocId !== null && userDocId !== void 0 ? userDocId : null,
+        team_id: targetTeamId,
+        full_name: fullName,
+        jersey_number: jerseyNumber,
+        positions: (_c = player.positions) !== null && _c !== void 0 ? _c : [],
+        height_cm: (_d = player.height_cm) !== null && _d !== void 0 ? _d : null,
+        weight_kg: (_e = player.weight_kg) !== null && _e !== void 0 ? _e : null,
+        date_of_birth: (_f = player.date_of_birth) !== null && _f !== void 0 ? _f : null,
+        photo_url: (_g = player.photo_url) !== null && _g !== void 0 ? _g : null,
+        photo_base64: (_h = player.photo_base64) !== null && _h !== void 0 ? _h : null,
+        status: 'active',
+        created_at: admin.firestore.FieldValue.serverTimestamp(),
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    batch.update(db.collection('players').doc(playerId), {
+        status: 'inactive',
+        user_id: admin.firestore.FieldValue.delete(),
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    if (userDocId) {
+        const userSnap = await db.collection('users').doc(userDocId).get();
+        if (userSnap.exists) {
+            const uid = (_j = userSnap.data()) === null || _j === void 0 ? void 0 : _j.uid;
+            batch.update(db.collection('users').doc(userDocId), {
+                team_id: targetTeamId,
+                player_id: newPlayerId,
+                updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            if (uid) {
+                await auth.setCustomUserClaims(uid, {
+                    role: 'player',
+                    team_id: targetTeamId,
+                });
+            }
+        }
+    }
+    await batch.commit();
+    return { success: true, newPlayerId, targetTeamId };
 });
 // ── deleteUser: hapus akun permanen dari Auth + Firestore ───────────
 exports.deleteUser = functions.https.onCall(async (data, context) => {
@@ -240,7 +346,7 @@ exports.deleteUser = functions.https.onCall(async (data, context) => {
         });
     });
     await batch.commit();
-    await auth.deleteUser(uid);
+    await deleteAuthUserIfExists(uid);
     return { success: true };
 });
 // ── onMatchFinished: Hitung statistik final saat POST_MATCH ──────────
@@ -319,6 +425,38 @@ function generatePlayerId(jerseyNumber, fullName, teamId) {
         .join('');
     const teamShort = teamId.replace(/_/g, '');
     return `${jerseyNumber}_${initials}_${teamShort}`;
+}
+function normalizeRole(role) {
+    if (typeof role !== 'string')
+        return null;
+    const normalized = role.trim().toLowerCase();
+    if (normalized === 'statistican')
+        return 'statistician';
+    return ['manager', 'coach', 'statistician', 'player'].includes(normalized)
+        ? normalized
+        : null;
+}
+async function updateAuthDisabled(uid, disabled) {
+    try {
+        await auth.updateUser(uid, { disabled });
+    }
+    catch (err) {
+        const code = err.code;
+        if (code === 'auth/user-not-found')
+            return;
+        throw err;
+    }
+}
+async function deleteAuthUserIfExists(uid) {
+    try {
+        await auth.deleteUser(uid);
+    }
+    catch (err) {
+        const code = err.code;
+        if (code === 'auth/user-not-found')
+            return;
+        throw err;
+    }
 }
 function calculateFinalStats(eventDocs) {
     const stats = {};

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:budiutama_basketball/core/constants/firestore_paths.dart';
 import 'package:budiutama_basketball/core/errors/app_exceptions.dart';
+import 'package:budiutama_basketball/core/utils/match_state_machine.dart';
 import 'package:budiutama_basketball/features/matches/dashboard/data/models/match_model.dart';
 import 'package:budiutama_basketball/features/players/data/models/player_model.dart';
 
@@ -47,8 +48,7 @@ class MatchRepository {
   // ── READS ──────────────────────────────────────────────────────────────
 
   Future<MatchModel?> getById(String matchId) async {
-    final doc =
-        await _db.collection(FirestorePaths.matches).doc(matchId).get();
+    final doc = await _db.collection(FirestorePaths.matches).doc(matchId).get();
     if (!doc.exists) return null;
     return MatchModel.fromFirestore(doc);
   }
@@ -83,6 +83,37 @@ class MatchRepository {
     }
   }
 
+  Future<void> transitionState({
+    required String matchId,
+    required String nextState,
+  }) async {
+    final matchRef = _db.collection(FirestorePaths.matches).doc(matchId);
+
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(matchRef);
+      if (!snapshot.exists) {
+        throw const FirestoreException('Pertandingan tidak ditemukan.');
+      }
+
+      final data = snapshot.data() ?? {};
+      final currentState = data['current_state'] as String? ?? 'PRE_MATCH';
+      if (!isValidTransition(currentState, nextState)) {
+        throw MatchStateException(
+          'Transisi state tidak valid: $currentState → $nextState.',
+        );
+      }
+
+      transaction.update(matchRef, {
+        'current_state': nextState,
+        if (nextState == 'Q1_ACTIVE') 'status': 'ongoing',
+        if (nextState == 'POST_MATCH') 'status': 'finished',
+        if (nextState == 'POST_MATCH')
+          'finished_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
   /// Perbarui konfigurasi timer sebelum pertandingan dimulai.
   /// Hanya bisa dilakukan saat timer_config_locked == false.
   Future<void> updateTimerConfig(
@@ -93,7 +124,9 @@ class MatchRepository {
   }) async {
     // Cek apakah config sudah dikunci
     final match = await getById(matchId);
-    if (match == null) throw const FirestoreException('Pertandingan tidak ditemukan.');
+    if (match == null) {
+      throw const FirestoreException('Pertandingan tidak ditemukan.');
+    }
     if (match.timerConfigLocked) {
       throw const FirestoreException(
           'Konfigurasi timer sudah dikunci. Pertandingan sudah dimulai.');
@@ -137,9 +170,8 @@ class MatchRepository {
     });
 
     // 2. Inisialisasi timer_state
-    final timerRef = _db
-        .collection(FirestorePaths.matchTimerState(matchId))
-        .doc('state');
+    final timerRef =
+        _db.collection(FirestorePaths.matchTimerState(matchId)).doc('state');
     batch.set(timerRef, {
       'is_running': false,
       'seconds_at_start': (quarterDurationMinutes * 60).toDouble(),
@@ -153,9 +185,8 @@ class MatchRepository {
       final docId = _deriveStatsDocId(player.id);
 
       // Lineup document
-      final lineupRef = _db
-          .collection(FirestorePaths.matchLineups(matchId))
-          .doc(docId);
+      final lineupRef =
+          _db.collection(FirestorePaths.matchLineups(matchId)).doc(docId);
       batch.set(lineupRef, {
         'player_id': player.id,
         'full_name': player.fullName,
@@ -170,9 +201,8 @@ class MatchRepository {
       });
 
       // Player stats document (diinisialisasi nol semua)
-      final statsRef = _db
-          .collection(FirestorePaths.matchPlayerStats(matchId))
-          .doc(docId);
+      final statsRef =
+          _db.collection(FirestorePaths.matchPlayerStats(matchId)).doc(docId);
       batch.set(statsRef, {
         'player_id': player.id,
         'full_name': player.fullName,

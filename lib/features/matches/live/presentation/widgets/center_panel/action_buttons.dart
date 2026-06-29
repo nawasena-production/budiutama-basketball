@@ -5,7 +5,7 @@ class ActionButtonSpec {
   final String actionType;
   final String shortLabel;
   final String longLabel;
-  final _ActionButtonStyle style;
+  final ActionButtonStyle style;
   final bool needsCourtOverlay;
 
   const ActionButtonSpec({
@@ -17,99 +17,95 @@ class ActionButtonSpec {
   });
 }
 
-enum _ActionButtonStyle { scoring3pt, scoring, miss, stat, foul }
+enum ActionButtonStyle { scoring3pt, scoring, miss, stat, foul }
 
-/// 13 tombol aksi sesuai SRS FR-LMS-03 / PRD Section 7.2 (tabel "Tim
+/// Tombol aksi sesuai SRS FR-LMS-03 / PRD Section 7.2 (tabel "Tim
 /// Budi Utama — Detail per Pemain").
 ///
 /// Free throw (+1 / MISS 1) TIDAK memerlukan Court Overlay — dicatat
 /// langsung tanpa koordinat (PRD: "Tidak masuk heatmap").
+/// Assist sengaja tidak menjadi tombol utama; assist dipilih setelah
+/// lokasi made shot 2PT/3PT dikonfirmasi.
 const List<ActionButtonSpec> kPlayerActionButtons = [
   ActionButtonSpec(
     actionType: '1PT_MADE',
     shortLabel: '+1',
     longLabel: 'Free Throw',
-    style: _ActionButtonStyle.scoring,
+    style: ActionButtonStyle.scoring,
   ),
   ActionButtonSpec(
     actionType: '2PT_MADE',
     shortLabel: '+2',
     longLabel: '2PT Made',
-    style: _ActionButtonStyle.scoring,
+    style: ActionButtonStyle.scoring,
     needsCourtOverlay: true,
   ),
   ActionButtonSpec(
     actionType: '3PT_MADE',
     shortLabel: '+3',
     longLabel: '3PT Made',
-    style: _ActionButtonStyle.scoring3pt,
+    style: ActionButtonStyle.scoring3pt,
     needsCourtOverlay: true,
   ),
   ActionButtonSpec(
     actionType: 'MISS_1PT',
     shortLabel: 'M1',
     longLabel: 'Miss FT',
-    style: _ActionButtonStyle.miss,
+    style: ActionButtonStyle.miss,
   ),
   ActionButtonSpec(
     actionType: 'MISS_2PT',
     shortLabel: 'M2',
     longLabel: 'Miss 2PT',
-    style: _ActionButtonStyle.miss,
+    style: ActionButtonStyle.miss,
     needsCourtOverlay: true,
   ),
   ActionButtonSpec(
     actionType: 'MISS_3PT',
     shortLabel: 'M3',
     longLabel: 'Miss 3PT',
-    style: _ActionButtonStyle.miss,
+    style: ActionButtonStyle.miss,
     needsCourtOverlay: true,
-  ),
-  ActionButtonSpec(
-    actionType: 'ASSIST',
-    shortLabel: 'AST',
-    longLabel: 'Assist',
-    style: _ActionButtonStyle.stat,
   ),
   ActionButtonSpec(
     actionType: 'REBOUND_OFF',
     shortLabel: 'OREB',
     longLabel: 'Off Reb',
-    style: _ActionButtonStyle.stat,
+    style: ActionButtonStyle.stat,
   ),
   ActionButtonSpec(
     actionType: 'REBOUND_DEF',
     shortLabel: 'DREB',
     longLabel: 'Def Reb',
-    style: _ActionButtonStyle.stat,
+    style: ActionButtonStyle.stat,
   ),
   ActionButtonSpec(
     actionType: 'STEAL',
     shortLabel: 'STL',
     longLabel: 'Steal',
-    style: _ActionButtonStyle.stat,
+    style: ActionButtonStyle.stat,
   ),
   ActionButtonSpec(
     actionType: 'TURNOVER',
     shortLabel: 'TO',
     longLabel: 'Turnover',
-    style: _ActionButtonStyle.stat,
+    style: ActionButtonStyle.stat,
   ),
   ActionButtonSpec(
     actionType: 'BLOCK',
     shortLabel: 'BLK',
     longLabel: 'Block',
-    style: _ActionButtonStyle.stat,
+    style: ActionButtonStyle.stat,
   ),
   ActionButtonSpec(
     actionType: 'FOUL',
     shortLabel: 'FOUL',
     longLabel: 'Personal',
-    style: _ActionButtonStyle.foul,
+    style: ActionButtonStyle.foul,
   ),
 ];
 
-/// Grid 13 tombol aksi (FR-LMS-03) — dinonaktifkan total bila belum ada
+/// Grid tombol aksi (FR-LMS-03) — dinonaktifkan total bila belum ada
 /// pemain dipilih ([enabled] = false), karena setiap aksi statistik
 /// individu wajib terikat pada satu pemain (kecuali aksi tim lawan, yang
 /// ditangani [OpponentActionsPanel] terpisah).
@@ -205,33 +201,33 @@ class _ActionButton extends StatelessWidget {
     );
   }
 
-  (Color, Color, Color) _colorsFor(_ActionButtonStyle style) {
+  (Color, Color, Color) _colorsFor(ActionButtonStyle style) {
     switch (style) {
-      case _ActionButtonStyle.scoring3pt:
+      case ActionButtonStyle.scoring3pt:
         return (
           const Color(0xFF14532D),
           const Color(0xFF166534),
           const Color(0xFF86EFAC),
         );
-      case _ActionButtonStyle.scoring:
+      case ActionButtonStyle.scoring:
         return (
           const Color(0xFF1B4332),
           const Color(0xFF2D6A4F),
           const Color(0xFF95D5B2),
         );
-      case _ActionButtonStyle.miss:
+      case ActionButtonStyle.miss:
         return (
           const Color(0xFF450A0A),
           const Color(0xFF7F1D1D),
           const Color(0xFFFCA5A5),
         );
-      case _ActionButtonStyle.stat:
+      case ActionButtonStyle.stat:
         return (
           const Color(0xFF1E3A5F),
           const Color(0xFF2563EB),
           const Color(0xFF93C5FD),
         );
-      case _ActionButtonStyle.foul:
+      case ActionButtonStyle.foul:
         return (
           const Color(0xFF451A03),
           const Color(0xFF92400E),

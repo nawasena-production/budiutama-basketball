@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:budiutama_basketball/core/utils/team_sort.dart';
 import 'package:budiutama_basketball/features/events/data/models/event_model.dart';
 import 'package:budiutama_basketball/features/events/data/repositories/event_repository.dart';
 import 'package:budiutama_basketball/features/events/domain/providers/events_provider.dart';
+import 'package:budiutama_basketball/features/players/data/models/player_model.dart';
+import 'package:budiutama_basketball/features/players/domain/providers/players_provider.dart';
+import 'package:budiutama_basketball/features/players/presentation/widgets/team_toggle_widget.dart';
+import 'package:budiutama_basketball/shared/models/team_model.dart';
 
 /// Bottom sheet untuk membuat event/turnamen baru.
 /// Hanya dapat diakses oleh Manager (FR-MCH-01 dari SRS).
@@ -14,11 +19,13 @@ import 'package:budiutama_basketball/features/events/domain/providers/events_pro
 class AddEventBottomSheet extends ConsumerStatefulWidget {
   final String teamId;
   final String academicYear; // "2025/2026"
+  final String createdBy;
 
   const AddEventBottomSheet({
     super.key,
     required this.teamId,
     required this.academicYear,
+    required this.createdBy,
   });
 
   @override
@@ -33,6 +40,8 @@ class _AddEventBottomSheetState extends ConsumerState<AddEventBottomSheet> {
   final _locationController = TextEditingController();
 
   String _eventType = 'porseni';
+  late String _teamId;
+  final Set<String> _selectedPlayerIds = {};
   DateTime? _startDate;
   DateTime? _endDate;
   bool _isSubmitting = false;
@@ -40,10 +49,18 @@ class _AddEventBottomSheetState extends ConsumerState<AddEventBottomSheet> {
   static const _eventTypes = [
     (value: 'porseni', label: 'Porseni'),
     (value: 'popda', label: 'Popda'),
+    (value: 'dbl', label: 'DBL'),
+    (value: 'liga_pelajar', label: 'Liga Pelajar'),
     (value: 'antar_sekolah', label: 'Antar Sekolah'),
     (value: 'persahabatan', label: 'Persahabatan / Friendly'),
     (value: 'lainnya', label: 'Lainnya'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _teamId = widget.teamId;
+  }
 
   @override
   void dispose() {
@@ -56,6 +73,8 @@ class _AddEventBottomSheetState extends ConsumerState<AddEventBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final teamsAsync = ref.watch(teamsStreamProvider);
+    final playersAsync = ref.watch(activePLayersStreamProvider(_teamId));
 
     return Container(
       decoration: const BoxDecoration(
@@ -92,10 +111,14 @@ class _AddEventBottomSheetState extends ConsumerState<AddEventBottomSheet> {
               ),
               const SizedBox(height: 20),
 
+              _buildLabel('Tim *'),
+              _buildTeamDropdown(teamsAsync),
+              const SizedBox(height: 14),
+
               // Tipe event
               _buildLabel('Tipe Event *'),
               DropdownButtonFormField<String>(
-                value: _eventType,
+                initialValue: _eventType,
                 decoration: _inputDecoration(null),
                 items: _eventTypes
                     .map((t) => DropdownMenuItem(
@@ -143,6 +166,10 @@ class _AddEventBottomSheetState extends ConsumerState<AddEventBottomSheet> {
                 decoration: _inputDecoration('Contoh: GOR Amongraga'),
                 textCapitalization: TextCapitalization.words,
               ),
+              const SizedBox(height: 14),
+
+              _buildLabel('Pemain yang Dibawa *'),
+              _buildPlayerSelector(playersAsync),
               const SizedBox(height: 14),
 
               // Tanggal mulai dan selesai
@@ -239,8 +266,7 @@ class _AddEventBottomSheetState extends ConsumerState<AddEventBottomSheet> {
   }
 
   String _previewEventId() {
-    final yearCode =
-        EventRepository.academicYearToCode(widget.academicYear);
+    final yearCode = EventRepository.academicYearToCode(widget.academicYear);
     return EventRepository.generateEventId(
       eventType: _eventType,
       eventName: _nameController.text.trim(),
@@ -250,12 +276,15 @@ class _AddEventBottomSheetState extends ConsumerState<AddEventBottomSheet> {
 
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedPlayerIds.isEmpty) {
+      _showError('Pilih minimal 1 pemain yang mengikuti event.');
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
     try {
-      final yearCode =
-          EventRepository.academicYearToCode(widget.academicYear);
+      final yearCode = EventRepository.academicYearToCode(widget.academicYear);
       final eventId = EventRepository.generateEventId(
         eventType: _eventType,
         eventName: _nameController.text.trim(),
@@ -264,7 +293,7 @@ class _AddEventBottomSheetState extends ConsumerState<AddEventBottomSheet> {
 
       final event = EventModel(
         id: eventId,
-        teamId: widget.teamId,
+        teamId: _teamId,
         name: _nameController.text.trim(),
         organizer: _organizerController.text.trim(),
         eventType: _eventType,
@@ -272,8 +301,9 @@ class _AddEventBottomSheetState extends ConsumerState<AddEventBottomSheet> {
         startDate: _startDate,
         endDate: _endDate,
         academicYear: widget.academicYear,
+        playerIds: _selectedPlayerIds.toList()..sort(),
         status: 'upcoming',
-        createdBy: 'manager', // akan diisi dari auth provider
+        createdBy: widget.createdBy,
       );
 
       final success = await ref
@@ -301,8 +331,156 @@ class _AddEventBottomSheetState extends ConsumerState<AddEventBottomSheet> {
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text(message), backgroundColor: Colors.red.shade700),
+      SnackBar(content: Text(message), backgroundColor: Colors.red.shade700),
+    );
+  }
+
+  Widget _buildTeamDropdown(AsyncValue<List<TeamModel>> teamsAsync) {
+    return teamsAsync.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (e, _) => Text(
+        'Gagal memuat tim: $e',
+        style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+      ),
+      data: (teams) {
+        final sortedTeams = sortTeamsForDisplay(teams);
+        final selectedId = sortedTeams.any((team) => team.id == _teamId)
+            ? _teamId
+            : (sortedTeams.isNotEmpty ? sortedTeams.first.id : null);
+        if (selectedId != null && selectedId != _teamId) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                _teamId = selectedId;
+                _selectedPlayerIds.clear();
+              });
+            }
+          });
+        }
+
+        return DropdownButtonFormField<String>(
+          initialValue: selectedId,
+          decoration: _inputDecoration('Pilih tim'),
+          items: sortedTeams
+              .map(
+                (team) => DropdownMenuItem(
+                  value: team.id,
+                  child: Text(team.name),
+                ),
+              )
+              .toList(),
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() {
+              _teamId = value;
+              _selectedPlayerIds.clear();
+            });
+          },
+          validator: (value) =>
+              value == null || value.isEmpty ? 'Pilih tim' : null,
+        );
+      },
+    );
+  }
+
+  Widget _buildPlayerSelector(AsyncValue<List<PlayerModel>> playersAsync) {
+    return playersAsync.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (e, _) => Text(
+        'Gagal memuat pemain: $e',
+        style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+      ),
+      data: (players) {
+        if (players.isEmpty) {
+          return const Text(
+            'Tidak ada pemain aktif di tim ini.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF6B7A8D)),
+          );
+        }
+
+        final allPlayerIds = players.map((player) => player.id).toSet();
+        final allSelected = allPlayerIds.isNotEmpty &&
+            allPlayerIds.every(_selectedPlayerIds.contains);
+
+        return SizedBox(
+          height: 220,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF4F6F8),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFC8D6E5)),
+            ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 8, 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${_selectedPlayerIds.length}/${players.length} pemain dipilih',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF6B7A8D),
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            if (allSelected) {
+                              _selectedPlayerIds.removeAll(allPlayerIds);
+                            } else {
+                              _selectedPlayerIds.addAll(allPlayerIds);
+                            }
+                          });
+                        },
+                        icon: Icon(
+                          allSelected
+                              ? Icons.check_box_outlined
+                              : Icons.select_all,
+                          size: 18,
+                        ),
+                        label:
+                            Text(allSelected ? 'Hapus semua' : 'Pilih semua'),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: players.length,
+                    itemBuilder: (context, index) {
+                      final player = players[index];
+                      final selected = _selectedPlayerIds.contains(player.id);
+                      return CheckboxListTile(
+                        dense: true,
+                        value: selected,
+                        title: Text(
+                          '#${player.jerseyNumber} ${player.fullName}',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: (checked) {
+                          setState(() {
+                            if (checked == true) {
+                              _selectedPlayerIds.add(player.id);
+                            } else {
+                              _selectedPlayerIds.remove(player.id);
+                            }
+                          });
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -335,11 +513,9 @@ class _AddEventBottomSheetState extends ConsumerState<AddEventBottomSheet> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide:
-            const BorderSide(color: Color(0xFF1A3A5C), width: 2),
+        borderSide: const BorderSide(color: Color(0xFF1A3A5C), width: 2),
       ),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       isDense: true,
     );
   }
@@ -373,8 +549,7 @@ class _DatePickerField extends StatelessWidget {
         onChanged(picked);
       },
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           color: const Color(0xFFF4F6F8),
           borderRadius: BorderRadius.circular(10),

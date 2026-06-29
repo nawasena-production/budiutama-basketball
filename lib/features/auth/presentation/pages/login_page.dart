@@ -16,6 +16,8 @@ class LoginPage extends ConsumerStatefulWidget {
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _emailFocusNode = FocusNode();
+  final _passwordFocusNode = FocusNode();
   final _formKey = GlobalKey<FormState>();
 
   bool _isLoading = false;
@@ -25,6 +27,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _emailFocusNode.dispose();
+    _passwordFocusNode.dispose();
     super.dispose();
   }
 
@@ -53,6 +57,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                 formKey: _formKey,
                                 emailController: _emailController,
                                 passwordController: _passwordController,
+                                emailFocusNode: _emailFocusNode,
+                                passwordFocusNode: _passwordFocusNode,
                                 isLoading: _isLoading,
                                 obscurePassword: _obscurePassword,
                                 onTogglePassword: _togglePasswordVisibility,
@@ -70,6 +76,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               formKey: _formKey,
                               emailController: _emailController,
                               passwordController: _passwordController,
+                              emailFocusNode: _emailFocusNode,
+                              passwordFocusNode: _passwordFocusNode,
                               isLoading: _isLoading,
                               obscurePassword: _obscurePassword,
                               onTogglePassword: _togglePasswordVisibility,
@@ -91,6 +99,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _handleLogin() async {
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
@@ -222,6 +231,8 @@ class _LoginFormCard extends StatelessWidget {
   final GlobalKey<FormState> formKey;
   final TextEditingController emailController;
   final TextEditingController passwordController;
+  final FocusNode emailFocusNode;
+  final FocusNode passwordFocusNode;
   final bool isLoading;
   final bool obscurePassword;
   final VoidCallback onTogglePassword;
@@ -231,6 +242,8 @@ class _LoginFormCard extends StatelessWidget {
     required this.formKey,
     required this.emailController,
     required this.passwordController,
+    required this.emailFocusNode,
+    required this.passwordFocusNode,
     required this.isLoading,
     required this.obscurePassword,
     required this.onTogglePassword,
@@ -275,8 +288,10 @@ class _LoginFormCard extends StatelessWidget {
               TextFormField(
                 key: const Key('email_field'),
                 controller: emailController,
+                focusNode: emailFocusNode,
                 enabled: !isLoading,
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
                 autofillHints: const [AutofillHints.email],
                 decoration: const InputDecoration(
                   labelText: 'Email',
@@ -288,13 +303,16 @@ class _LoginFormCard extends StatelessWidget {
                       RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email);
                   return isValid ? null : 'Email tidak valid';
                 },
+                onFieldSubmitted: (_) => passwordFocusNode.requestFocus(),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 key: const Key('password_field'),
                 controller: passwordController,
+                focusNode: passwordFocusNode,
                 enabled: !isLoading,
                 obscureText: obscurePassword,
+                textInputAction: TextInputAction.done,
                 autofillHints: const [AutofillHints.password],
                 decoration: InputDecoration(
                   labelText: 'Password',
@@ -309,6 +327,9 @@ class _LoginFormCard extends StatelessWidget {
                 validator: (value) => (value?.length ?? 0) >= 8
                     ? null
                     : 'Password minimal 8 karakter',
+                onFieldSubmitted: (_) {
+                  if (!isLoading) onSubmit();
+                },
               ),
               const SizedBox(height: 24),
               SizedBox(

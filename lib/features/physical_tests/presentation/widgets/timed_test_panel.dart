@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:budiutama_basketball/features/physical_tests/data/models/physical_test_result_model.dart';
 import 'package:budiutama_basketball/features/physical_tests/data/repositories/physical_test_repository.dart';
 import 'package:budiutama_basketball/features/physical_tests/domain/providers/physical_test_provider.dart';
 import 'package:budiutama_basketball/features/players/data/models/player_model.dart';
@@ -32,24 +35,37 @@ class _TimedTestPanelState extends ConsumerState<TimedTestPanel> {
   final Set<String> _completedPlayerIds = {};
   final Map<String, double> _liveResults = {};
   String? _runningPlayerId;
-  Stopwatch _stopwatch = Stopwatch();
-  late final Stream<int> _ticker;
+  final Stopwatch _stopwatch = Stopwatch();
+  Timer? _ticker;
 
   @override
-  void initState() {
-    super.initState();
-    _ticker = Stream.periodic(const Duration(milliseconds: 100), (i) => i);
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
   }
 
   void _startStopwatch(String playerId) {
+    if (_runningPlayerId != null) return;
+    _ticker?.cancel();
+    _stopwatch
+      ..reset()
+      ..start();
+
     setState(() {
       _runningPlayerId = playerId;
-      _stopwatch = Stopwatch()..start();
+    });
+
+    _ticker = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (mounted && _runningPlayerId != null) {
+        setState(() {});
+      }
     });
   }
 
   Future<void> _stopStopwatch(PlayerModel player) async {
     _stopwatch.stop();
+    _ticker?.cancel();
+    _ticker = null;
     final seconds = _stopwatch.elapsedMilliseconds / 1000.0;
 
     setState(() {
@@ -83,8 +99,29 @@ class _TimedTestPanelState extends ConsumerState<TimedTestPanel> {
   String get _testLabel =>
       widget.testType == 't_test' ? 'T-Test' : 'Sprint 20m';
 
+  Map<String, double> _savedTimes(List<PhysicalTestResultModel> results) {
+    final times = <String, double>{};
+    for (final result in results) {
+      final timeSeconds = result.timeSeconds;
+      if (timeSeconds != null) {
+        times[result.playerId] = timeSeconds;
+      }
+    }
+    return times;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final resultsAsync =
+        ref.watch(physicalTestResultsStreamProvider(widget.sessionId));
+    final savedResults = resultsAsync.valueOrNull ?? [];
+    final savedTimes = _savedTimes(savedResults);
+
+    final completedCount = widget.players.where((player) {
+      return _completedPlayerIds.contains(player.id) ||
+          savedTimes.containsKey(player.id);
+    }).length;
+
     return Column(
       children: [
         Container(
@@ -99,7 +136,7 @@ class _TimedTestPanelState extends ConsumerState<TimedTestPanel> {
                   style: const TextStyle(fontWeight: FontWeight.w600)),
               const Spacer(),
               Text(
-                '${_completedPlayerIds.length}/${widget.players.length} selesai',
+                '$completedCount/${widget.players.length} selesai',
                 style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -113,7 +150,8 @@ class _TimedTestPanelState extends ConsumerState<TimedTestPanel> {
           child: ListView.separated(
             itemCount: widget.players.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (ctx, i) => _buildPlayerRow(widget.players[i]),
+            itemBuilder: (ctx, i) =>
+                _buildPlayerRow(widget.players[i], savedTimes),
           ),
         ),
         const SizedBox(height: 12),
@@ -126,10 +164,12 @@ class _TimedTestPanelState extends ConsumerState<TimedTestPanel> {
     );
   }
 
-  Widget _buildPlayerRow(PlayerModel player) {
-    final isDone = _completedPlayerIds.contains(player.id);
+  Widget _buildPlayerRow(PlayerModel player, Map<String, double> savedTimes) {
+    final savedTime = savedTimes[player.id];
+    final isDone =
+        _completedPlayerIds.contains(player.id) || savedTime != null;
     final isRunning = _runningPlayerId == player.id;
-    final liveTime = _liveResults[player.id];
+    final liveTime = _liveResults[player.id] ?? savedTime;
 
     return Container(
       color: isDone ? const Color(0xFFEDF1F5) : null,
@@ -158,29 +198,27 @@ class _TimedTestPanelState extends ConsumerState<TimedTestPanel> {
           if (isDone)
             const Icon(Icons.check_circle, color: Color(0xFF3B6D11))
           else if (isRunning)
-            StreamBuilder<int>(
-              stream: _ticker,
-              builder: (_, __) => Row(
-                children: [
-                  Text(
-                    '${(_stopwatch.elapsedMilliseconds / 1000).toStringAsFixed(1)}s',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A3A5C)),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: () => _stopStopwatch(player),
-                    style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFA32D2D)),
-                    child: const Text('STOP'),
-                  ),
-                ],
-              ),
+            Row(
+              children: [
+                Text(
+                  '${(_stopwatch.elapsedMilliseconds / 1000).toStringAsFixed(1)}s',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, color: Color(0xFF1A3A5C)),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: () => _stopStopwatch(player),
+                  style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFA32D2D)),
+                  child: const Text('STOP'),
+                ),
+              ],
             )
           else
             FilledButton(
-              onPressed: () => _startStopwatch(player.id),
+              onPressed: _runningPlayerId == null
+                  ? () => _startStopwatch(player.id)
+                  : null,
               style:
                   FilledButton.styleFrom(backgroundColor: const Color(0xFF3B6D11)),
               child: const Text('START'),

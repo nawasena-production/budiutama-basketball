@@ -7,7 +7,9 @@ import 'package:budiutama_basketball/features/physical_tests/domain/providers/ph
 import 'package:budiutama_basketball/features/physical_tests/presentation/widgets/add_physical_test_session_bottom_sheet.dart';
 import 'package:budiutama_basketball/features/physical_tests/presentation/widgets/beep_test_panel.dart';
 import 'package:budiutama_basketball/features/physical_tests/presentation/widgets/timed_test_panel.dart';
+import 'package:budiutama_basketball/features/physical_tests/presentation/widgets/timed_test_results_panel.dart';
 import 'package:budiutama_basketball/features/players/domain/providers/players_provider.dart';
+import 'package:budiutama_basketball/features/players/presentation/widgets/team_toggle_widget.dart';
 import 'package:budiutama_basketball/shared/widgets/app_page_scaffold.dart';
 import 'package:budiutama_basketball/shared/widgets/confirm_dialog.dart';
 import 'package:budiutama_basketball/shared/widgets/empty_state_widget.dart';
@@ -66,13 +68,18 @@ class _PhysicalTestPageState extends ConsumerState<PhysicalTestPage>
   @override
   Widget build(BuildContext context) {
     final activeSessionId = ref.watch(activeSessionIdProvider);
+    final activeSessionTeamId =
+        ref.watch(activeSessionTeamIdProvider) ?? widget.teamId;
 
     // Jika ada sesi aktif, tampilkan panel input langsung (fullscreen-ish).
     if (activeSessionId != null) {
       return _ActiveSessionView(
         sessionId: activeSessionId,
-        teamId: widget.teamId,
-        onClose: () => ref.read(activeSessionIdProvider.notifier).state = null,
+        teamId: activeSessionTeamId,
+        onClose: () {
+          ref.read(activeSessionIdProvider.notifier).state = null;
+          ref.read(activeSessionTeamIdProvider.notifier).state = null;
+        },
       );
     }
 
@@ -87,11 +94,16 @@ class _PhysicalTestPageState extends ConsumerState<PhysicalTestPage>
               child: const Icon(Icons.add),
             )
           : null,
-      bottom: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        tabs: _testLabels.map((l) => Tab(text: l)).toList(),
+      bottom: Column(
+        children: [
+          const TeamToggleWidget(),
+          TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: _testLabels.map((l) => Tab(text: l)).toList(),
+          ),
+        ],
       ),
       child: TabBarView(
         controller: _tabController,
@@ -155,8 +167,11 @@ class _SessionList extends ConsumerWidget {
           itemBuilder: (ctx, i) => _SessionCard(
             session: sessions[i],
             canManage: canManage,
-            onStart: () => ref.read(activeSessionIdProvider.notifier).state =
-                sessions[i].id,
+            onStart: () {
+              ref.read(activeSessionIdProvider.notifier).state = sessions[i].id;
+              ref.read(activeSessionTeamIdProvider.notifier).state =
+                  sessions[i].teamId;
+            },
           ),
         );
       },
@@ -212,7 +227,7 @@ class _SessionCard extends StatelessWidget {
           '${session.isStoppedEarly == true ? ' • Dihentikan awal' : ''}',
           style: const TextStyle(fontSize: 11, color: Color(0xFF6B7A8D)),
         ),
-        trailing: canManage && !isPast
+        trailing: canManage && !isPast && session.isStoppedEarly != true
             ? FilledButton(
                 onPressed: onStart,
                 style: FilledButton.styleFrom(
@@ -224,7 +239,10 @@ class _SessionCard extends StatelessWidget {
               )
             : TextButton(
                 onPressed: onStart,
-                child: const Text('Lihat'),
+                child: Text(
+                  session.isStoppedEarly == true ? 'Lihat Hasil' : 'Lihat',
+                  style: const TextStyle(fontSize: 12),
+                ),
               ),
       ),
     );
@@ -246,7 +264,9 @@ class _ActiveSessionView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final sessionAsync = ref.watch(physicalTestSessionProvider(sessionId));
     final playersAsync = ref.watch(activePLayersStreamProvider(teamId));
+    final resultsAsync = ref.watch(physicalTestResultsStreamProvider(sessionId));
 
     return Scaffold(
       appBar: AppBar(
@@ -256,46 +276,69 @@ class _ActiveSessionView extends ConsumerWidget {
           onPressed: () => _confirmClose(context, ref),
         ),
       ),
-      body: playersAsync.when(
+      body: sessionAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
-        data: (players) {
-          if (players.isEmpty) {
+        data: (session) {
+          if (session == null) {
             return const EmptyStateWidget(
-              icon: Icons.group_off_outlined,
-              message: 'Tidak ada pemain aktif di tim ini.',
+              icon: Icons.error_outline,
+              message: 'Sesi tes fisik tidak ditemukan.',
             );
           }
 
-          // Ambil tipe tes dari sessionId prefix (beep_, t_test_, sprint_).
-          final testType = sessionId.startsWith('beep')
-              ? 'beep_test'
-              : sessionId.startsWith('t_test')
-                  ? 't_test'
-                  : 'sprint_20m';
+          return playersAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Error: $e')),
+            data: (players) {
+              if (players.isEmpty) {
+                return const EmptyStateWidget(
+                  icon: Icons.group_off_outlined,
+                  message: 'Tidak ada pemain aktif di tim ini.',
+                );
+              }
 
-          // Batch 5 pemain per layar untuk Beep Test (sesuai kapasitas lintasan).
-          final batch = players.take(5).toList();
+              final testType = session.testType;
+              final isSessionCompleted = session.isStoppedEarly;
+              final results = resultsAsync.valueOrNull ?? [];
 
-          if (testType == 'beep_test') {
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: BeepTestPanel(
-                sessionId: sessionId,
-                players: batch,
-                onStopSession: () => _stopSession(context, ref),
-              ),
-            );
-          }
+              // Sesi selesai — T-Test & Sprint 20m: tampilkan hasil saja.
+              if (isSessionCompleted &&
+                  (testType == 't_test' || testType == 'sprint_20m')) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: TimedTestResultsPanel(
+                    testType: testType,
+                    players: players,
+                    results: results,
+                  ),
+                );
+              }
 
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: TimedTestPanel(
-              sessionId: sessionId,
-              testType: testType,
-              players: players,
-              onStopSession: () => _stopSession(context, ref),
-            ),
+              // Batch 5 pemain per layar untuk Beep Test (sesuai kapasitas lintasan).
+              final batch = players.take(5).toList();
+
+              if (testType == 'beep_test') {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: BeepTestPanel(
+                    sessionId: sessionId,
+                    players: batch,
+                    onStopSession: () => _stopSession(context, ref),
+                  ),
+                );
+              }
+
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: TimedTestPanel(
+                  sessionId: sessionId,
+                  testType: testType,
+                  players: players,
+                  onStopSession: () => _stopSession(context, ref),
+                ),
+              );
+            },
           );
         },
       ),
@@ -322,10 +365,21 @@ class _ActiveSessionView extends ConsumerWidget {
       confirmLabel: 'Hentikan',
     );
     if (confirmed == true) {
-      await ref
+      final success = await ref
           .read(physicalTestActionsProvider.notifier)
           .stopSessionEarly(sessionId);
-      onClose();
+      if (!context.mounted) return;
+
+      if (success) {
+        onClose();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Gagal menghentikan sesi tes fisik.'),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
     }
   }
 }

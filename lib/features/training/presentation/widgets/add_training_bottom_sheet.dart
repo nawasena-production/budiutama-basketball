@@ -3,9 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:budiutama_basketball/core/utils/team_sort.dart';
 import 'package:budiutama_basketball/features/training/data/models/training_session_model.dart';
 import 'package:budiutama_basketball/features/training/data/repositories/training_repository.dart';
 import 'package:budiutama_basketball/features/training/domain/providers/training_provider.dart';
+import 'package:budiutama_basketball/features/players/presentation/widgets/team_toggle_widget.dart';
+import 'package:budiutama_basketball/shared/models/team_model.dart';
 
 /// Bottom sheet untuk membuat jadwal sesi latihan baru.
 /// Hanya dapat diakses oleh Manager (SRS FR-TRN-01).
@@ -36,6 +39,7 @@ class _AddTrainingBottomSheetState
   final _durationController = TextEditingController(text: '90');
 
   String _sessionType = 'physical';
+  late String _teamId;
   DateTime? _scheduledDate;
   TimeOfDay? _scheduledTime;
   bool _isSubmitting = false;
@@ -49,6 +53,12 @@ class _AddTrainingBottomSheetState
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _teamId = widget.teamId;
+  }
+
+  @override
   void dispose() {
     _titleController.dispose();
     _locationController.dispose();
@@ -60,6 +70,7 @@ class _AddTrainingBottomSheetState
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final teamsAsync = ref.watch(teamsStreamProvider);
 
     return Container(
       decoration: const BoxDecoration(
@@ -95,6 +106,10 @@ class _AddTrainingBottomSheetState
                 ),
               ),
               const SizedBox(height: 20),
+
+              _buildLabel('Tim *'),
+              _buildTeamDropdown(teamsAsync),
+              const SizedBox(height: 14),
 
               // Tipe sesi — horizontal chip selector
               _buildLabel('Tipe Sesi *'),
@@ -336,6 +351,45 @@ class _AddTrainingBottomSheetState
     );
   }
 
+  Widget _buildTeamDropdown(AsyncValue<List<TeamModel>> teamsAsync) {
+    return teamsAsync.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (e, _) => Text(
+        'Gagal memuat tim: $e',
+        style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+      ),
+      data: (teams) {
+        final sortedTeams = sortTeamsForDisplay(teams);
+        final selectedId = sortedTeams.any((team) => team.id == _teamId)
+            ? _teamId
+            : (sortedTeams.isNotEmpty ? sortedTeams.first.id : null);
+        if (selectedId != null && selectedId != _teamId) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _teamId = selectedId);
+          });
+        }
+
+        return DropdownButtonFormField<String>(
+          value: selectedId,
+          decoration: _inputDecoration('Pilih tim'),
+          items: sortedTeams
+              .map(
+                (team) => DropdownMenuItem(
+                  value: team.id,
+                  child: Text(team.name),
+                ),
+              )
+              .toList(),
+          onChanged: (value) {
+            if (value != null) setState(() => _teamId = value);
+          },
+          validator: (value) =>
+              value == null || value.isEmpty ? 'Pilih tim' : null,
+        );
+      },
+    );
+  }
+
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -358,7 +412,7 @@ class _AddTrainingBottomSheetState
       );
 
       final sessionId = TrainingRepository.generateSessionId(
-        teamId: widget.teamId,
+        teamId: _teamId,
         sessionType: _sessionType,
         scheduledAt: scheduledAt,
       );
@@ -367,7 +421,7 @@ class _AddTrainingBottomSheetState
 
       final session = TrainingSessionModel(
         id: sessionId,
-        teamId: widget.teamId,
+        teamId: _teamId,
         title: _titleController.text.trim(),
         sessionType: _sessionType,
         scheduledAt: scheduledAt,

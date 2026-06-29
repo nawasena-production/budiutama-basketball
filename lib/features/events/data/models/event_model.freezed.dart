@@ -36,6 +36,8 @@ mixin _$EventModel {
   DateTime? get endDate => throw _privateConstructorUsedError;
   @JsonKey(name: 'academic_year')
   String get academicYear => throw _privateConstructorUsedError;
+  @JsonKey(name: 'player_ids')
+  List<String> get playerIds => throw _privateConstructorUsedError;
   String get status => throw _privateConstructorUsedError;
   String get notes => throw _privateConstructorUsedError;
   @JsonKey(name: 'created_by')
@@ -77,6 +79,7 @@ abstract class $EventModelCopyWith<$Res> {
       @JsonKey(name: 'end_date')
       DateTime? endDate,
       @JsonKey(name: 'academic_year') String academicYear,
+      @JsonKey(name: 'player_ids') List<String> playerIds,
       String status,
       String notes,
       @JsonKey(name: 'created_by') String createdBy,
@@ -112,6 +115,7 @@ class _$EventModelCopyWithImpl<$Res, $Val extends EventModel>
     Object? startDate = freezed,
     Object? endDate = freezed,
     Object? academicYear = null,
+    Object? playerIds = null,
     Object? status = null,
     Object? notes = null,
     Object? createdBy = null,
@@ -155,6 +159,10 @@ class _$EventModelCopyWithImpl<$Res, $Val extends EventModel>
           ? _value.academicYear
           : academicYear // ignore: cast_nullable_to_non_nullable
               as String,
+      playerIds: null == playerIds
+          ? _value.playerIds
+          : playerIds // ignore: cast_nullable_to_non_nullable
+              as List<String>,
       status: null == status
           ? _value.status
           : status // ignore: cast_nullable_to_non_nullable
@@ -201,6 +209,7 @@ abstract class _$$EventModelImplCopyWith<$Res>
       @JsonKey(name: 'end_date')
       DateTime? endDate,
       @JsonKey(name: 'academic_year') String academicYear,
+      @JsonKey(name: 'player_ids') List<String> playerIds,
       String status,
       String notes,
       @JsonKey(name: 'created_by') String createdBy,
@@ -234,6 +243,7 @@ class __$$EventModelImplCopyWithImpl<$Res>
     Object? startDate = freezed,
     Object? endDate = freezed,
     Object? academicYear = null,
+    Object? playerIds = null,
     Object? status = null,
     Object? notes = null,
     Object? createdBy = null,
@@ -277,6 +287,10 @@ class __$$EventModelImplCopyWithImpl<$Res>
           ? _value.academicYear
           : academicYear // ignore: cast_nullable_to_non_nullable
               as String,
+      playerIds: null == playerIds
+          ? _value.playerIds
+          : playerIds // ignore: cast_nullable_to_non_nullable
+              as List<String>,
       status: null == status
           ? _value.status
           : status // ignore: cast_nullable_to_non_nullable
@@ -314,6 +328,7 @@ class _$EventModelImpl implements _EventModel {
       @TimestampDateTimeConverter() @JsonKey(name: 'start_date') this.startDate,
       @TimestampDateTimeConverter() @JsonKey(name: 'end_date') this.endDate,
       @JsonKey(name: 'academic_year') required this.academicYear,
+      @JsonKey(name: 'player_ids') this.playerIds = const [],
       this.status = 'upcoming',
       this.notes = '',
       @JsonKey(name: 'created_by') required this.createdBy,
@@ -351,6 +366,9 @@ class _$EventModelImpl implements _EventModel {
   @JsonKey(name: 'academic_year')
   final String academicYear;
   @override
+  @JsonKey(name: 'player_ids')
+  final List<String> playerIds;
+  @override
   @JsonKey()
   final String status;
   @override
@@ -370,7 +388,7 @@ class _$EventModelImpl implements _EventModel {
 
   @override
   String toString() {
-    return 'EventModel(id: $id, teamId: $teamId, name: $name, organizer: $organizer, eventType: $eventType, location: $location, startDate: $startDate, endDate: $endDate, academicYear: $academicYear, status: $status, notes: $notes, createdBy: $createdBy, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'EventModel(id: $id, teamId: $teamId, name: $name, organizer: $organizer, eventType: $eventType, location: $location, startDate: $startDate, endDate: $endDate, academicYear: $academicYear, playerIds: $playerIds, status: $status, notes: $notes, createdBy: $createdBy, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -392,6 +410,8 @@ class _$EventModelImpl implements _EventModel {
             (identical(other.endDate, endDate) || other.endDate == endDate) &&
             (identical(other.academicYear, academicYear) ||
                 other.academicYear == academicYear) &&
+            const DeepCollectionEquality()
+                .equals(other.playerIds, playerIds) &&
             (identical(other.status, status) || other.status == status) &&
             (identical(other.notes, notes) || other.notes == notes) &&
             (identical(other.createdBy, createdBy) ||
@@ -415,6 +435,7 @@ class _$EventModelImpl implements _EventModel {
       startDate,
       endDate,
       academicYear,
+      const DeepCollectionEquality().hash(playerIds),
       status,
       notes,
       createdBy,
@@ -452,6 +473,7 @@ abstract class _EventModel implements EventModel {
       @JsonKey(name: 'end_date')
       final DateTime? endDate,
       @JsonKey(name: 'academic_year') required final String academicYear,
+      @JsonKey(name: 'player_ids') final List<String> playerIds,
       final String status,
       final String notes,
       @JsonKey(name: 'created_by') required final String createdBy,
@@ -490,6 +512,9 @@ abstract class _EventModel implements EventModel {
   @override
   @JsonKey(name: 'academic_year')
   String get academicYear;
+  @override
+  @JsonKey(name: 'player_ids')
+  List<String> get playerIds;
   @override
   String get status;
   @override

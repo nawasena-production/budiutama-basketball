@@ -39,8 +39,7 @@ final selectedMatchIdProvider = StateProvider<String?>((ref) => null);
 
 /// Daftar pemain yang dipilih sebagai starter sebelum START MATCH.
 /// Maksimal 5 pemain, minimal 5 pemain sebelum bisa mulai.
-final selectedStartersProvider =
-    StateProvider<List<PlayerModel>>((ref) => []);
+final selectedStartersProvider = StateProvider<List<PlayerModel>>((ref) => []);
 
 // ── NOTIFIER ──────────────────────────────────────────────────────────────
 
@@ -69,6 +68,21 @@ class MatchActionsNotifier extends AsyncNotifier<void> {
     state = const AsyncLoading();
     try {
       await _repo.update(matchId, data);
+      state = const AsyncData(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      return false;
+    }
+  }
+
+  Future<bool> transitionState({
+    required String matchId,
+    required String nextState,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      await _repo.transitionState(matchId: matchId, nextState: nextState);
       state = const AsyncData(null);
       return true;
     } catch (e, st) {
@@ -134,7 +148,6 @@ class MatchActionsNotifier extends AsyncNotifier<void> {
   }
 }
 
-final matchActionsProvider =
-    AsyncNotifierProvider<MatchActionsNotifier, void>(
+final matchActionsProvider = AsyncNotifierProvider<MatchActionsNotifier, void>(
   MatchActionsNotifier.new,
 );

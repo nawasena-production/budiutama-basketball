@@ -18,8 +18,7 @@ class AddUserBottomSheet extends ConsumerStatefulWidget {
   const AddUserBottomSheet({super.key});
 
   @override
-  ConsumerState<AddUserBottomSheet> createState() =>
-      _AddUserBottomSheetState();
+  ConsumerState<AddUserBottomSheet> createState() => _AddUserBottomSheetState();
 }
 
 class _AddUserBottomSheetState extends ConsumerState<AddUserBottomSheet> {
@@ -33,7 +32,7 @@ class _AddUserBottomSheetState extends ConsumerState<AddUserBottomSheet> {
 
   String _role = 'player';
   String? _teamId;
-  Set<String> _selectedPositions = {'PG'};
+  Set<String> _selectedPositions = {};
   DateTime? _dateOfBirth;
   bool _isSubmitting = false;
   bool _obscurePassword = true;
@@ -59,7 +58,7 @@ class _AddUserBottomSheetState extends ConsumerState<AddUserBottomSheet> {
     super.dispose();
   }
 
-  bool get _needsTeam => _role == 'player' || _role == 'statistician';
+  bool get _needsTeam => _role == 'player';
   bool get _needsPlayerProfile => _role == 'player';
 
   @override
@@ -150,7 +149,7 @@ class _AddUserBottomSheetState extends ConsumerState<AddUserBottomSheet> {
                 children: _roles.map((r) {
                   final isSelected = _role == r.value;
                   return GestureDetector(
-                    onTap: () => setState(() => _role = r.value),
+                    onTap: () => _setRole(r.value),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -367,6 +366,20 @@ class _AddUserBottomSheetState extends ConsumerState<AddUserBottomSheet> {
     }
   }
 
+  void _setRole(String role) {
+    setState(() {
+      _role = role;
+      if (role != 'player') {
+        _teamId = null;
+        _selectedPositions = {};
+        _jerseyController.clear();
+        _heightController.clear();
+        _weightController.clear();
+        _dateOfBirth = null;
+      }
+    });
+  }
+
   Future<void> _handleSubmit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_needsPlayerProfile && _selectedPositions.isEmpty) {
@@ -461,7 +474,7 @@ class _AddUserBottomSheetState extends ConsumerState<AddUserBottomSheet> {
             sortedTeams.any((t) => t.id == _teamId) ? _teamId : null;
 
         return DropdownButtonFormField<String>(
-          value: selectedId,
+          initialValue: selectedId,
           decoration: _inputDecoration('Pilih tim'),
           items: sortedTeams
               .map(

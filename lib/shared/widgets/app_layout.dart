@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:budiutama_basketball/core/theme/app_breakpoints.dart';
 import 'package:budiutama_basketball/core/theme/app_colors.dart';
+import 'package:budiutama_basketball/features/auth/domain/providers/auth_provider.dart';
+import 'package:budiutama_basketball/features/users/domain/providers/user_provider.dart';
+import 'package:budiutama_basketball/shared/models/user_model.dart';
 
-class AppLayout extends StatefulWidget {
+class AppLayout extends ConsumerStatefulWidget {
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
   final Widget body;
@@ -18,16 +22,17 @@ class AppLayout extends StatefulWidget {
   });
 
   @override
-  State<AppLayout> createState() => _AppLayoutState();
+  ConsumerState<AppLayout> createState() => _AppLayoutState();
 }
 
-class _AppLayoutState extends State<AppLayout> {
+class _AppLayoutState extends ConsumerState<AppLayout> {
   static bool _persistedExpanded = false;
   late bool _isExpanded = _persistedExpanded;
 
   @override
   Widget build(BuildContext context) {
     final destinations = _destinationsForRole(widget.role);
+    final currentUser = ref.watch(currentUserProfileProvider).valueOrNull;
     final safeIndex = destinations.isEmpty
         ? 0
         : widget.selectedIndex.clamp(0, destinations.length - 1);
@@ -45,6 +50,8 @@ class _AppLayoutState extends State<AppLayout> {
                   selectedIndex: safeIndex,
                   expanded: _isExpanded,
                   role: widget.role,
+                  user: currentUser,
+                  onLogout: _logout,
                   onToggleExpanded: () {
                     setState(() {
                       _isExpanded = !_isExpanded;
@@ -64,6 +71,8 @@ class _AppLayoutState extends State<AppLayout> {
             destinations: destinations,
             selectedIndex: safeIndex,
             role: widget.role,
+            user: currentUser,
+            onLogout: _logout,
             onDestinationSelected: (index) {
               Navigator.of(context).pop();
               widget.onDestinationSelected(index);
@@ -82,9 +91,18 @@ class _AppLayoutState extends State<AppLayout> {
     );
   }
 
+  Future<void> _logout() async {
+    ref.read(pendingOtpProvider.notifier).state = null;
+    await ref.read(authRepositoryProvider).signOut();
+    ref.invalidate(userRoleProvider);
+    ref.invalidate(currentUserDocIdProvider);
+    ref.invalidate(currentUserUidProvider);
+    ref.invalidate(currentUserProfileProvider);
+  }
+
   List<_AppDestination> _destinationsForRole(String role) {
     return [
-      if (role != 'player')
+      if (role == 'coach' || role == 'manager')
         const _AppDestination(
           label: 'Players',
           icon: Icons.people_outline,
@@ -100,11 +118,6 @@ class _AppLayoutState extends State<AppLayout> {
         label: 'Events',
         icon: Icons.emoji_events_outlined,
         selectedIcon: Icons.emoji_events,
-      ),
-      const _AppDestination(
-        label: 'Matches',
-        icon: Icons.sports_basketball_outlined,
-        selectedIcon: Icons.sports_basketball,
       ),
       if (role == 'coach' || role == 'manager')
         const _AppDestination(
@@ -145,6 +158,8 @@ class _DesktopSidebar extends StatelessWidget {
   final int selectedIndex;
   final bool expanded;
   final String role;
+  final UserModel? user;
+  final VoidCallback onLogout;
   final VoidCallback onToggleExpanded;
   final ValueChanged<int> onDestinationSelected;
 
@@ -153,6 +168,8 @@ class _DesktopSidebar extends StatelessWidget {
     required this.selectedIndex,
     required this.expanded,
     required this.role,
+    required this.user,
+    required this.onLogout,
     required this.onToggleExpanded,
     required this.onDestinationSelected,
   });
@@ -216,7 +233,12 @@ class _DesktopSidebar extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: _RolePill(role: role, expanded: expanded),
+              child: _AccountCard(
+                role: role,
+                user: user,
+                expanded: expanded,
+                onLogout: onLogout,
+              ),
             ),
           ],
         ),
@@ -229,12 +251,16 @@ class _NavigationDrawerContent extends StatelessWidget {
   final List<_AppDestination> destinations;
   final int selectedIndex;
   final String role;
+  final UserModel? user;
+  final VoidCallback onLogout;
   final ValueChanged<int> onDestinationSelected;
 
   const _NavigationDrawerContent({
     required this.destinations,
     required this.selectedIndex,
     required this.role,
+    required this.user,
+    required this.onLogout,
     required this.onDestinationSelected,
   });
 
@@ -275,7 +301,12 @@ class _NavigationDrawerContent extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(16),
-              child: _RolePill(role: role, expanded: true),
+              child: _AccountCard(
+                role: role,
+                user: user,
+                expanded: true,
+                onLogout: onLogout,
+              ),
             ),
           ],
         ),
@@ -460,16 +491,76 @@ class _SidebarIconButton extends StatelessWidget {
   }
 }
 
-class _RolePill extends StatelessWidget {
+class _AccountCard extends StatelessWidget {
   final String role;
+  final UserModel? user;
   final bool expanded;
+  final VoidCallback onLogout;
 
-  const _RolePill({required this.role, required this.expanded});
+  const _AccountCard({
+    required this.role,
+    required this.user,
+    required this.expanded,
+    required this.onLogout,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final label =
+    final roleLabel =
         role.isEmpty ? 'User' : '${role[0].toUpperCase()}${role.substring(1)}';
+    final name = user?.fullName.trim();
+    final email = user?.email.trim();
+    final initials = (name == null || name.isEmpty)
+        ? '?'
+        : name
+            .split(RegExp(r'\s+'))
+            .take(2)
+            .map((part) => part[0].toUpperCase())
+            .join();
+
+    if (!expanded) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderSoft),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 15,
+              backgroundColor: AppColors.navySoft,
+              child: Text(
+                initials,
+                style: const TextStyle(
+                  color: AppColors.navy,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: 30,
+              height: 30,
+              child: IconButton(
+                tooltip: 'Logout',
+                onPressed: onLogout,
+                padding: EdgeInsets.zero,
+                icon: const Icon(
+                  Icons.logout,
+                  size: 16,
+                  color: AppColors.muted,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       width: double.infinity,
@@ -483,26 +574,58 @@ class _RolePill extends StatelessWidget {
         border: Border.all(color: AppColors.borderSoft),
       ),
       child: Row(
-        mainAxisAlignment:
-            expanded ? MainAxisAlignment.start : MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          const Icon(Icons.verified_user_outlined,
-              size: 18, color: AppColors.navy),
-          if (expanded) ...[
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.navy,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                ),
+          CircleAvatar(
+            radius: 15,
+            backgroundColor: AppColors.navySoft,
+            child: Text(
+              initials,
+              style: const TextStyle(
+                color: AppColors.navy,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
               ),
             ),
-          ],
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name?.isNotEmpty == true ? name! : roleLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.navy,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  email?.isNotEmpty == true ? email! : roleLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.muted,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Logout',
+            onPressed: onLogout,
+            icon: const Icon(
+              Icons.logout,
+              size: 18,
+              color: AppColors.muted,
+            ),
+          ),
         ],
       ),
     );

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:budiutama_basketball/features/injuries/data/models/injury_report_model.dart';
 import 'package:budiutama_basketball/features/injuries/domain/providers/injury_provider.dart';
 import 'package:budiutama_basketball/features/injuries/presentation/widgets/add_injury_bottom_sheet.dart';
+import 'package:budiutama_basketball/features/players/presentation/widgets/team_toggle_widget.dart';
 import 'package:budiutama_basketball/shared/widgets/app_page_scaffold.dart';
 import 'package:budiutama_basketball/shared/widgets/confirm_dialog.dart';
 import 'package:budiutama_basketball/shared/widgets/empty_state_widget.dart';
@@ -64,13 +65,18 @@ class _InjuryPageState extends ConsumerState<InjuryPage>
         tooltip: 'Laporan Cedera Baru',
         child: const Icon(Icons.add),
       ),
-      bottom: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        tabs: const [
-          Tab(text: 'Aktif'),
-          Tab(text: 'Histori'),
+      bottom: Column(
+        children: [
+          const TeamToggleWidget(),
+          TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: const [
+              Tab(text: 'Aktif'),
+              Tab(text: 'Histori'),
+            ],
+          ),
         ],
       ),
       child: TabBarView(

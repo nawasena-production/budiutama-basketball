@@ -162,7 +162,6 @@ const _dashboardSlugs = [
   'players',
   'training',
   'events',
-  'matches',
   'injuries',
   'physical-tests',
   'statistics',
@@ -204,7 +203,6 @@ class _DashboardPage extends ConsumerWidget {
       'players',
       'training',
       'events',
-      'matches',
       'injuries',
       'physical-tests',
       'statistics',
@@ -214,14 +212,13 @@ class _DashboardPage extends ConsumerWidget {
     'coach': [
       'training',
       'events',
-      'matches',
       'injuries',
       'physical-tests',
       'statistics',
       'audit-log',
     ],
-    'statistician': ['events', 'matches'],
-    'player': ['training', 'events', 'matches', 'statistics'],
+    'statistician': ['events'],
+    'player': ['training', 'events', 'statistics'],
   };
 
   static List<String> _slugsFor(String role) => _slugsByRole[role] ?? const [];
@@ -248,6 +245,15 @@ class _DashboardPage extends ConsumerWidget {
         final userDocId = userDocIdAsync.valueOrNull ?? '';
         final teamId = ref.watch(activeTeamIdProvider);
         final roleSlugs = _slugsFor(effectiveRole);
+        final slugAllowed = roleSlugs.contains(slug);
+        if (roleSlugs.isNotEmpty && !slugAllowed) {
+          Future.microtask(() {
+            if (context.mounted) context.go('/${roleSlugs.first}');
+          });
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
         final selectedIndex = _indexForSlug(effectiveRole, slug);
 
         return AppLayout(
@@ -308,24 +314,24 @@ class _DashboardBody extends StatelessWidget {
     // Urutan harus SAMA dengan _destinationsForRole() di AppLayout.
     switch (role) {
       // ── MANAGER ─────────────────────────────────────────────────────
-      // 0: Players, 1: Training, 2: Events, 3: Matches,
-      // 4: Injuries, 5: Physical Tests, 6: Statistics, 7: Audit Log, 8: Users
+      // 0: Players, 1: Training, 2: Events,
+      // 3: Injuries, 4: Physical Tests, 5: Statistics, 6: Audit Log, 7: Users
       case 'manager':
         return _managerBody(context, index, teamId, userDocId);
 
       // ── COACH ───────────────────────────────────────────────────────
-      // 0: Training, 1: Events, 2: Matches,
-      // 3: Injuries, 4: Physical Tests, 5: Statistics, 6: Audit Log
+      // 0: Training, 1: Events,
+      // 2: Injuries, 3: Physical Tests, 4: Statistics, 5: Audit Log
       case 'coach':
         return _coachBody(context, index, teamId, userDocId);
 
       // ── STATISTICIAN ─────────────────────────────────────────────────
-      // 0: Events, 1: Matches
+      // 0: Events
       case 'statistician':
         return _statisticianBody(context, index, teamId, userDocId);
 
       // ── PLAYER ──────────────────────────────────────────────────────
-      // 0: Training, 1: Events, 2: Matches, 3: Statistics
+      // 0: Training, 1: Events, 2: Statistics
       case 'player':
         return _playerBody(context, index, teamId, userDocId);
 
@@ -352,35 +358,28 @@ class _DashboardBody extends StatelessWidget {
           teamId: teamId,
           role: 'manager',
           academicYear: '2025/2026',
+          createdBy: userDocId,
           onEventSelected: (event) =>
               _pushMatchesPage(context, event, 'manager', teamId, userDocId),
         );
-      case 3: // Matches — tampilkan events dulu untuk pilih context
-        return EventsPage(
-          teamId: teamId,
-          role: 'manager',
-          academicYear: '2025/2026',
-          onEventSelected: (event) =>
-              _pushMatchesPage(context, event, 'manager', teamId, userDocId),
-        );
-      case 4: // Injuries — placeholder Step 10
+      case 3: // Injuries — placeholder Step 10
         return InjuryPage(
           teamId: teamId,
           role: 'manager',
           createdBy: userDocId,
         );
-      case 5: // Physical Tests — placeholder Step 11
+      case 4: // Physical Tests — placeholder Step 11
         return PhysicalTestPage(
           teamId: teamId,
           role: 'manager',
           createdBy: userDocId,
           academicYear: '2025/2026',
         );
-      case 6: // Statistics — Step 18
+      case 5: // Statistics — Step 18
         return const StatisticsDashboardPage();
-      case 7: // Audit Log — Step 19
+      case 6: // Audit Log — Step 19
         return const AuditLogPage();
-      case 8: // Users — placeholder Step 12
+      case 7: // Users — placeholder Step 12
         return const UserManagementPage();
       default:
         return const _ComingSoonPage(label: 'Dashboard');
@@ -401,33 +400,26 @@ class _DashboardBody extends StatelessWidget {
           teamId: teamId,
           role: 'coach',
           academicYear: '2025/2026',
+          createdBy: userDocId,
           onEventSelected: (event) =>
               _pushMatchesPage(context, event, 'coach', teamId, userDocId),
         );
-      case 2: // Matches
-        return EventsPage(
-          teamId: teamId,
-          role: 'coach',
-          academicYear: '2025/2026',
-          onEventSelected: (event) =>
-              _pushMatchesPage(context, event, 'coach', teamId, userDocId),
-        );
-      case 3: // Injuries — placeholder Step 10
+      case 2: // Injuries — placeholder Step 10
         return InjuryPage(
           teamId: teamId,
           role: 'coach',
           createdBy: userDocId,
         );
-      case 4: // Physical Tests — placeholder Step 11
+      case 3: // Physical Tests — placeholder Step 11
         return PhysicalTestPage(
           teamId: teamId,
           role: 'coach',
           createdBy: userDocId,
           academicYear: '2025/2026',
         );
-      case 5: // Statistics — Step 18
+      case 4: // Statistics — Step 18
         return const StatisticsDashboardPage();
-      case 6: // Audit Log — Step 19
+      case 5: // Audit Log — Step 19
         return const AuditLogPage();
       default:
         return const _ComingSoonPage(label: 'Dashboard');
@@ -442,14 +434,7 @@ class _DashboardBody extends StatelessWidget {
           teamId: teamId,
           role: 'statistician',
           academicYear: '2025/2026',
-          onEventSelected: (event) => _pushMatchesPage(
-              context, event, 'statistician', teamId, userDocId),
-        );
-      case 1: // Matches
-        return EventsPage(
-          teamId: teamId,
-          role: 'statistician',
-          academicYear: '2025/2026',
+          createdBy: userDocId,
           onEventSelected: (event) => _pushMatchesPage(
               context, event, 'statistician', teamId, userDocId),
         );
@@ -472,18 +457,11 @@ class _DashboardBody extends StatelessWidget {
           teamId: teamId,
           role: 'player',
           academicYear: '2025/2026',
+          createdBy: userDocId,
           onEventSelected: (event) =>
               _pushMatchesPage(context, event, 'player', teamId, userDocId),
         );
-      case 2: // Matches (read-only)
-        return EventsPage(
-          teamId: teamId,
-          role: 'player',
-          academicYear: '2025/2026',
-          onEventSelected: (event) =>
-              _pushMatchesPage(context, event, 'player', teamId, userDocId),
-        );
-      case 3: // Statistics — Step 18
+      case 2: // Statistics — Step 18
         return const StatisticsDashboardPage();
       default:
         return const _ComingSoonPage(label: 'Dashboard');

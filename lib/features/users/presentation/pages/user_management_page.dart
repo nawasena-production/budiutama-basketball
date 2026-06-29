@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:budiutama_basketball/features/players/data/models/player_model.dart';
 import 'package:budiutama_basketball/features/users/domain/providers/user_provider.dart';
 import 'package:budiutama_basketball/features/users/presentation/widgets/add_user_bottom_sheet.dart';
 import 'package:budiutama_basketball/shared/models/user_model.dart';
@@ -141,15 +144,9 @@ class _UserCard extends ConsumerWidget {
       child: ListTile(
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: CircleAvatar(
-          backgroundColor: roleColor.withValues(alpha: 0.12),
-          child: Text(
-            user.fullName.isNotEmpty
-                ? user.fullName[0].toUpperCase()
-                : '?',
-            style:
-                TextStyle(color: roleColor, fontWeight: FontWeight.bold),
-          ),
+        leading: _UserAvatar(
+          user: user,
+          fallbackColor: roleColor,
         ),
         title: Row(
           children: [
@@ -495,6 +492,87 @@ class _UserCard extends ConsumerWidget {
         backgroundColor:
             isError ? Colors.red.shade700 : const Color(0xFF3B6D11),
         duration: Duration(seconds: isError ? 5 : 3),
+      ),
+    );
+  }
+}
+
+class _UserAvatar extends ConsumerWidget {
+  final UserModel user;
+  final Color fallbackColor;
+
+  const _UserAvatar({
+    required this.user,
+    required this.fallbackColor,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (user.role != 'player') return _FallbackAvatar(user, fallbackColor);
+
+    final playerAsync = ref.watch(linkedPlayerForUserProvider(user.id));
+    return playerAsync.when(
+      data: (player) => _PlayerPhotoAvatar(
+        player: player,
+        fallback: _FallbackAvatar(user, fallbackColor),
+      ),
+      loading: () => _FallbackAvatar(user, fallbackColor),
+      error: (_, __) => _FallbackAvatar(user, fallbackColor),
+    );
+  }
+}
+
+class _PlayerPhotoAvatar extends StatelessWidget {
+  final PlayerModel? player;
+  final Widget fallback;
+
+  const _PlayerPhotoAvatar({
+    required this.player,
+    required this.fallback,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final photoBase64 = player?.photoBase64;
+    final photoUrl = player?.photoUrl;
+
+    if (photoBase64 != null && photoBase64.isNotEmpty) {
+      final rawBase64 = photoBase64.contains(',')
+          ? photoBase64.substring(photoBase64.indexOf(',') + 1)
+          : photoBase64;
+      try {
+        return CircleAvatar(
+          backgroundImage: MemoryImage(base64Decode(rawBase64)),
+        );
+      } catch (_) {
+        return fallback;
+      }
+    }
+
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      return CircleAvatar(
+        backgroundImage: NetworkImage(photoUrl),
+        onBackgroundImageError: (_, __) {},
+      );
+    }
+
+    return fallback;
+  }
+}
+
+class _FallbackAvatar extends StatelessWidget {
+  final UserModel user;
+  final Color color;
+
+  const _FallbackAvatar(this.user, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return CircleAvatar(
+      backgroundColor: color.withValues(alpha: 0.12),
+      child: Text(
+        user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?',
+        style: TextStyle(color: color, fontWeight: FontWeight.bold),
       ),
     );
   }

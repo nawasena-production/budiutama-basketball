@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:budiutama_basketball/features/auth/domain/providers/auth_provider.dart';
+import 'package:budiutama_basketball/features/players/data/models/player_model.dart';
 import 'package:budiutama_basketball/features/users/data/repositories/user_repository.dart';
 import 'package:budiutama_basketball/shared/models/user_model.dart';
 
@@ -18,6 +20,17 @@ final allUsersProvider = StreamProvider<List<UserModel>>((ref) {
 final usersByRoleProvider =
     StreamProvider.family<List<UserModel>, String>((ref, role) {
   return ref.watch(userRepositoryProvider).watchByRole(role);
+});
+
+final currentUserProfileProvider = StreamProvider<UserModel?>((ref) {
+  final uid = ref.watch(currentUserUidProvider);
+  if (uid == null) return Stream.value(null);
+  return ref.watch(userRepositoryProvider).watchByUid(uid);
+});
+
+final linkedPlayerForUserProvider =
+    StreamProvider.family<PlayerModel?, String>((ref, userDocId) {
+  return ref.watch(userRepositoryProvider).watchLinkedPlayer(userDocId);
 });
 
 // ── FILTER STATE ──────────────────────────────────────────────────────────
@@ -131,6 +144,25 @@ class UserActionsNotifier extends AsyncNotifier<void> {
     } catch (e, st) {
       state = AsyncError(e, st);
       return false;
+    }
+  }
+
+  /// Pindahkan pemain SMP ke tim SMA (via Cloud Function).
+  Future<String?> transferPlayerTeam({
+    required String playerId,
+    required String targetTeamId,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      final error = await _repo.transferPlayerTeam(
+        playerId: playerId,
+        targetTeamId: targetTeamId,
+      );
+      state = const AsyncData(null);
+      return error;
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      return e.toString();
     }
   }
 }

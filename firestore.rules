@@ -4,12 +4,22 @@ service cloud.firestore {
 
     // ── HELPER FUNCTIONS ────────────────────────────────────────
     function isAuth()         { return request.auth != null; }
-    function role()           { return request.auth.token.role; }
+    function role() {
+      return request.auth.token.role == 'statistican'
+        ? 'statistician'
+        : request.auth.token.role;
+    }
     function isManager()      { return isAuth() && role() == 'manager'; }
     function isCoach()        { return isAuth() && role() == 'coach'; }
     function isStatistician() { return isAuth() && role() == 'statistician'; }
     function isPlayer()       { return isAuth() && role() == 'player'; }
     function isStaff()        { return isManager() || isCoach(); }
+    function ownsLinkedUserDoc(userDocId) {
+      return isAuth()
+        && userDocId is string
+        && exists(/databases/$(database)/documents/users/$(userDocId))
+        && get(/databases/$(database)/documents/users/$(userDocId)).data.uid == request.auth.uid;
+    }
 
     // ── USERS ──────────────────────────────────────────────────
     match /users/{userId} {
@@ -27,7 +37,11 @@ service cloud.firestore {
     match /players/{playerId} {
       allow read: if isAuth() && (
         isStaff() || isStatistician() ||
-        (isPlayer() && request.auth.uid == resource.data.user_id)
+        (isPlayer() && (
+          request.auth.uid == resource.data.user_id ||
+          request.auth.uid == resource.data.uid ||
+          ownsLinkedUserDoc(resource.data.user_id)
+        ))
       );
       allow create: if isManager();
       allow update: if isManager();

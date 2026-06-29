@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:budiutama_basketball/core/errors/app_exceptions.dart';
 import 'package:budiutama_basketball/features/matches/dashboard/domain/providers/match_provider.dart';
 import 'package:budiutama_basketball/features/matches/live/domain/providers/live_match_stream_providers.dart';
+import 'package:budiutama_basketball/features/matches/live/domain/providers/timer_provider.dart';
 import 'match_timer_widget.dart';
 import 'connection_status.dart';
 
@@ -61,9 +63,9 @@ class MatchHeader extends ConsumerWidget {
           // terpisah di dokumen match, sesuai struktur Firestore di SDD
           // Section 3.2 (foul disimpan per-pemain di player_stats, bukan
           // sebagai counter tim independen).
-          final totalFouls = statsAsync.valueOrNull
-                  ?.fold<int>(0, (sum, s) => sum + s.fouls) ??
-              0;
+          final totalFouls =
+              statsAsync.valueOrNull?.fold<int>(0, (sum, s) => sum + s.fouls) ??
+                  0;
 
           return Row(
             children: [
@@ -86,6 +88,12 @@ class MatchHeader extends ConsumerWidget {
                   const Text(
                     'Server Timestamp sync',
                     style: TextStyle(color: Color(0xFF334155), fontSize: 9),
+                  ),
+                  const SizedBox(height: 6),
+                  _MatchClockControls(
+                    matchId: matchId,
+                    currentState: match.currentState,
+                    quarterDurationMinutes: match.quarterDurationMinutes,
                   ),
                 ],
               ),
@@ -201,6 +209,145 @@ class _InfoColumn extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _MatchClockControls extends ConsumerWidget {
+  final String matchId;
+  final String currentState;
+  final int quarterDurationMinutes;
+
+  const _MatchClockControls({
+    required this.matchId,
+    required this.currentState,
+    required this.quarterDurationMinutes,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final timerState = ref.watch(timerStateStreamProvider(matchId)).valueOrNull;
+    final timerControlState = ref.watch(timerControlProvider(matchId));
+    final matchActionState = ref.watch(matchActionsProvider);
+    final isBusy = timerControlState.isLoading || matchActionState.isLoading;
+    final isRunning = timerState?.isRunning ?? false;
+    final quarter = timerState?.quarter ?? 1;
+
+    if (currentState == 'PRE_MATCH') {
+      return _HeaderControlButton(
+        icon: Icons.play_arrow_rounded,
+        label: 'START MATCH',
+        foreground: const Color(0xFF0F172A),
+        background: const Color(0xFFFCD34D),
+        onPressed: isBusy ? null : () => _startMatchClock(context, ref),
+      );
+    }
+
+    if (!_isClockControllable(currentState)) {
+      return const SizedBox(height: 30);
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _HeaderControlButton(
+          icon: Icons.play_arrow_rounded,
+          label: 'RESUME',
+          foreground: const Color(0xFFDCFCE7),
+          background: const Color(0xFF166534),
+          onPressed: isBusy || isRunning
+              ? null
+              : () => ref
+                  .read(timerControlProvider(matchId).notifier)
+                  .resume(currentQuarter: quarter),
+        ),
+        const SizedBox(width: 6),
+        _HeaderControlButton(
+          icon: Icons.pause_rounded,
+          label: 'PAUSE',
+          foreground: const Color(0xFFFFEDD5),
+          background: const Color(0xFF9A3412),
+          onPressed: isBusy || !isRunning
+              ? null
+              : () => ref.read(timerControlProvider(matchId).notifier).pause(),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _startMatchClock(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final transitioned =
+          await ref.read(matchActionsProvider.notifier).transitionState(
+                matchId: matchId,
+                nextState: 'Q1_ACTIVE',
+              );
+      if (!transitioned) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Gagal memulai pertandingan.')),
+        );
+        return;
+      }
+
+      await ref.read(timerControlProvider(matchId).notifier).start(
+            fullDurationSeconds: (quarterDurationMinutes * 60).toDouble(),
+            quarter: 1,
+          );
+    } on AppException catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Gagal memulai pertandingan.')),
+      );
+    }
+  }
+
+  bool _isClockControllable(String state) {
+    return state == 'Q1_ACTIVE' ||
+        state == 'Q2_ACTIVE' ||
+        state == 'Q3_ACTIVE' ||
+        state == 'Q4_ACTIVE' ||
+        state == 'OT_ACTIVE';
+  }
+}
+
+class _HeaderControlButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color foreground;
+  final Color background;
+  final VoidCallback? onPressed;
+
+  const _HeaderControlButton({
+    required this.icon,
+    required this.label,
+    required this.foreground,
+    required this.background,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 30,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 16),
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+        ),
+        style: FilledButton.styleFrom(
+          backgroundColor: background,
+          disabledBackgroundColor: const Color(0xFF334155),
+          foregroundColor: foreground,
+          disabledForegroundColor: const Color(0xFF64748B),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          visualDensity: VisualDensity.compact,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        ),
+      ),
     );
   }
 }

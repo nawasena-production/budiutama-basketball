@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:budiutama_basketball/core/theme/app_colors.dart';
 import 'package:budiutama_basketball/features/players/data/models/player_model.dart';
 import 'package:budiutama_basketball/features/players/domain/providers/players_provider.dart';
-import 'package:budiutama_basketball/features/players/presentation/widgets/add_edit_player_bottom_sheet.dart';
 import 'package:budiutama_basketball/features/players/presentation/widgets/player_list_item.dart';
 import 'package:budiutama_basketball/shared/widgets/empty_state_widget.dart';
 import 'player_detail_page.dart';
@@ -15,8 +14,8 @@ import 'player_detail_page.dart';
 /// - Daftar pemain real-time dari Firestore (via stream listener)
 /// - Search berdasarkan nama atau nomor jersey
 /// - Filter berdasarkan status: Semua / Aktif / Cedera / Non-Aktif
-/// - FAB tambah pemain baru (Manager only)
 /// - Navigasi ke detail pemain
+/// - Pemain baru ditambahkan via menu User Management (Manager)
 ///
 /// Sesuai SRS FR-PLY-01 s.d FR-PLY-06.
 class PlayersPage extends ConsumerStatefulWidget {
@@ -83,13 +82,6 @@ class _PlayersPageState extends ConsumerState<PlayersPage>
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      floatingActionButton: widget.role == 'manager'
-          ? FloatingActionButton(
-              onPressed: _showAddPlayerSheet,
-              tooltip: 'Tambah Pemain',
-              child: const Icon(Icons.person_add_outlined),
-            )
-          : null,
       body: Column(
         children: [
           _buildToolbar(allPlayersAsync),
@@ -214,9 +206,8 @@ class _PlayersPageState extends ConsumerState<PlayersPage>
         icon: Icons.people_outline,
         message: isFiltered
             ? 'Tidak ada pemain yang sesuai filter.'
-            : 'Belum ada pemain di tim ini.\nTambahkan pemain pertama!',
-        ctaLabel: widget.role == 'manager' ? 'Tambah Pemain' : null,
-        onCtaPressed: widget.role == 'manager' ? _showAddPlayerSheet : null,
+            : 'Belum ada pemain di tim ini.\n'
+                'Tambahkan pemain melalui menu User Management.',
       );
     }
 
@@ -251,12 +242,4 @@ class _PlayersPageState extends ConsumerState<PlayersPage>
     );
   }
 
-  void _showAddPlayerSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => AddEditPlayerBottomSheet(teamId: widget.teamId),
-    );
-  }
 }

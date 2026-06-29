@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import 'package:budiutama_basketball/core/utils/team_sort.dart';
 import 'package:budiutama_basketball/features/physical_tests/data/models/physical_test_session_model.dart';
 import 'package:budiutama_basketball/features/physical_tests/data/repositories/physical_test_repository.dart';
 import 'package:budiutama_basketball/features/physical_tests/domain/providers/physical_test_provider.dart';
+import 'package:budiutama_basketball/features/players/presentation/widgets/team_toggle_widget.dart';
+import 'package:budiutama_basketball/shared/models/team_model.dart';
 
 /// Bottom sheet untuk membuat sesi tes fisik baru.
 /// Manager & Coach bisa membuat sesi (SRS FR-PHY-01).
@@ -29,6 +32,7 @@ class AddPhysicalTestSessionBottomSheet extends ConsumerStatefulWidget {
 class _AddPhysicalTestSessionBottomSheetState
     extends ConsumerState<AddPhysicalTestSessionBottomSheet> {
   String _testType = 'beep_test';
+  late String _teamId;
   int _semester = 1;
   DateTime _scheduledAt = DateTime.now();
   bool _isSubmitting = false;
@@ -41,13 +45,20 @@ class _AddPhysicalTestSessionBottomSheetState
 
   String get _generatedId => PhysicalTestRepository.generateSessionId(
         testType: _testType,
-        teamId: widget.teamId,
+        teamId: _teamId,
         scheduledAt: _scheduledAt,
       );
 
   @override
+  void initState() {
+    super.initState();
+    _teamId = widget.teamId;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final teamsAsync = ref.watch(teamsStreamProvider);
 
     return Container(
       decoration: const BoxDecoration(
@@ -76,6 +87,10 @@ class _AddPhysicalTestSessionBottomSheetState
                   color: Color(0xFF1A3A5C)),
             ),
             const SizedBox(height: 20),
+
+            _buildLabel('Tim *'),
+            _buildTeamDropdown(teamsAsync),
+            const SizedBox(height: 16),
 
             // Tipe tes
             _buildLabel('Jenis Tes *'),
@@ -260,7 +275,7 @@ class _AddPhysicalTestSessionBottomSheetState
       final sessionId = _generatedId;
       final session = PhysicalTestSessionModel(
         id: sessionId,
-        teamId: widget.teamId,
+        teamId: _teamId,
         testType: _testType,
         scheduledAt: _scheduledAt,
         academicYear: widget.academicYear,
@@ -296,4 +311,54 @@ class _AddPhysicalTestSessionBottomSheetState
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF1C2B3A))),
       );
+
+  Widget _buildTeamDropdown(AsyncValue<List<TeamModel>> teamsAsync) {
+    return teamsAsync.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (e, _) => Text(
+        'Gagal memuat tim: $e',
+        style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+      ),
+      data: (teams) {
+        final sortedTeams = sortTeamsForDisplay(teams);
+        final selectedId = sortedTeams.any((team) => team.id == _teamId)
+            ? _teamId
+            : (sortedTeams.isNotEmpty ? sortedTeams.first.id : null);
+        if (selectedId != null && selectedId != _teamId) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _teamId = selectedId);
+          });
+        }
+
+        return DropdownButtonFormField<String>(
+          value: selectedId,
+          decoration: InputDecoration(
+            hintText: 'Pilih tim',
+            filled: true,
+            fillColor: const Color(0xFFF4F6F8),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: Color(0xFFC8D6E5)),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            isDense: true,
+          ),
+          items: sortedTeams
+              .map(
+                (team) => DropdownMenuItem(
+                  value: team.id,
+                  child: Text(team.name),
+                ),
+              )
+              .toList(),
+          onChanged: (value) {
+            if (value != null) setState(() => _teamId = value);
+          },
+          validator: (value) =>
+              value == null || value.isEmpty ? 'Pilih tim' : null,
+        );
+      },
+    );
+  }
 }

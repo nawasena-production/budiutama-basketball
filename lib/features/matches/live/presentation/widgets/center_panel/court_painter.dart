@@ -14,6 +14,29 @@ class ShotPoint {
   const ShotPoint({required this.x, required this.y, required this.isMade});
 }
 
+/// Rect half-court dengan rasio lapangan basket regulasi.
+///
+/// Ukuran half-court FIBA/NBA secara visual mendekati 50ft x 47ft
+/// (lebar x panjang). Overlay Match Mode sering jauh lebih wide dari
+/// rasio ini, jadi lapangan harus di-center-fit agar tidak gepeng.
+Rect courtRectForSize(Size size) {
+  const courtAspectRatio = 50 / 47;
+  const padding = 12.0;
+  final availableWidth = max(0.0, size.width - padding * 2);
+  final availableHeight = max(0.0, size.height - padding * 2);
+
+  var courtWidth = availableWidth;
+  var courtHeight = courtWidth / courtAspectRatio;
+  if (courtHeight > availableHeight) {
+    courtHeight = availableHeight;
+    courtWidth = courtHeight * courtAspectRatio;
+  }
+
+  final left = (size.width - courtWidth) / 2;
+  final top = (size.height - courtHeight) / 2;
+  return Rect.fromLTWH(left, top, courtWidth, courtHeight);
+}
+
 /// Menggambar garis lapangan half-court standar (boundary, paint, free
 /// throw circle, arc 3PT, garis baseline corner, ring + backboard) ke
 /// atas [canvas] berukuran [size].
@@ -31,8 +54,12 @@ class ShotPoint {
 /// dengan logika klasifikasi — bukan dua sumber kebenaran yang bisa
 /// divergen.
 void drawHalfCourtLines(Canvas canvas, Size size) {
-  final w = size.width;
-  final h = size.height;
+  final courtRect = courtRectForSize(size);
+  final w = courtRect.width;
+  final h = courtRect.height;
+
+  canvas.save();
+  canvas.translate(courtRect.left, courtRect.top);
 
   final boundaryPaint = Paint()
     ..color = const Color(0xFF334155)
@@ -126,6 +153,7 @@ void drawHalfCourtLines(Canvas canvas, Size size) {
     ),
     Paint()..color = const Color(0xFF475569),
   );
+  canvas.restore();
 }
 
 /// Titik potong horizontal antara garis `y = yNorm` dan lingkaran arc
@@ -156,68 +184,70 @@ double xAtArcIntersection(double yNorm, {required bool isLeft}) {
 /// ini cukup akurat secara visual karena batas-batasnya lurus atau
 /// mendekati lurus pada rentang ukuran lapangan yang dipakai.
 Path? buildCourtZonePath(String zone, Size size) {
-  final w = size.width;
-  final h = size.height;
+  final courtRect = courtRectForSize(size);
+  final l = courtRect.left;
+  final t = courtRect.top;
+  final w = courtRect.width;
+  final h = courtRect.height;
 
   switch (zone) {
     case 'PAINT':
       return Path()
         ..addRect(Rect.fromLTWH(
-          w * paintXMin,
-          0,
+          l + w * paintXMin,
+          t,
           w * (paintXMax - paintXMin),
           h * paintYMax,
         ));
     case 'MEDIUM_LEFT':
-      return Path()
-        ..addRect(Rect.fromLTWH(0, 0, w * paintXMin, h * 0.55));
+      return Path()..addRect(Rect.fromLTWH(l, t, w * paintXMin, h * 0.55));
     case 'MEDIUM_RIGHT':
       return Path()
         ..addRect(Rect.fromLTWH(
-          w * paintXMax,
-          0,
+          l + w * paintXMax,
+          t,
           w * (1 - paintXMax),
           h * 0.55,
         ));
     case 'MEDIUM_CENTER':
       return Path()
         ..addRect(Rect.fromLTWH(
-          w * paintXMin,
-          h * paintYMax,
+          l + w * paintXMin,
+          t + h * paintYMax,
           w * (paintXMax - paintXMin),
           h * 0.25,
         ));
     case 'CORNER_LEFT':
-      return Path()..addRect(Rect.fromLTWH(0, 0, w * 0.18, h * cornerLineY));
+      return Path()..addRect(Rect.fromLTWH(l, t, w * 0.18, h * cornerLineY));
     case 'CORNER_RIGHT':
       return Path()
         ..addRect(Rect.fromLTWH(
-          w * 0.82,
-          0,
+          l + w * 0.82,
+          t,
           w * 0.18,
           h * cornerLineY,
         ));
     case 'WING_LEFT':
       return Path()
         ..addRect(Rect.fromLTWH(
-          0,
-          h * cornerLineY,
+          l,
+          t + h * cornerLineY,
           w * 0.30,
           h * 0.45,
         ));
     case 'WING_RIGHT':
       return Path()
         ..addRect(Rect.fromLTWH(
-          w * 0.70,
-          h * cornerLineY,
+          l + w * 0.70,
+          t + h * cornerLineY,
           w * 0.30,
           h * 0.45,
         ));
     case 'CENTER_3':
       return Path()
         ..addRect(Rect.fromLTWH(
-          w * 0.30,
-          h * 0.55,
+          l + w * 0.30,
+          t + h * 0.55,
           w * 0.40,
           h * 0.35,
         ));
@@ -265,9 +295,13 @@ class CourtPainter extends CustomPainter {
   }
 
   void _drawShotPoints(Canvas canvas, Size size) {
+    final courtRect = courtRectForSize(size);
     for (final shot in shots) {
       canvas.drawCircle(
-        Offset(shot.x * size.width, shot.y * size.height),
+        Offset(
+          courtRect.left + shot.x * courtRect.width,
+          courtRect.top + shot.y * courtRect.height,
+        ),
         5,
         Paint()
           ..color = shot.isMade

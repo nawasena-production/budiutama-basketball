@@ -191,6 +191,17 @@ describe('players collection', () => {
     );
   });
 
+  test('Player bisa membaca profilnya sendiri saat user_id berisi doc users', async () => {
+    await seed('users/player_7_ar', { uid: PLAYER.uid, role: 'player' });
+    await seed('players/7_ar_putra2526', {
+      full_name: 'Ahmad Rizki',
+      user_id: 'player_7_ar',
+    });
+    await assertSucceeds(
+      dbAs(PLAYER).collection('players').doc('7_ar_putra2526').get()
+    );
+  });
+
   test('Player TIDAK bisa membaca profil pemain lain', async () => {
     await seed('players/3_rn_putri2526', {
       full_name: 'Rina Nuraini',
@@ -434,6 +445,12 @@ describe('matches/{id}/player_stats subcollection', () => {
     await seed('matches/test_match/player_stats/7_ar', { points: 10 });
     await assertSucceeds(
       dbAs(COACH).doc('matches/test_match/player_stats/7_ar').get()
+    );
+    await assertSucceeds(
+      dbAs(STATISTICIAN).doc('matches/test_match/player_stats/7_ar').get()
+    );
+    await assertSucceeds(
+      dbAs(PLAYER).doc('matches/test_match/player_stats/7_ar').get()
     );
   });
 });

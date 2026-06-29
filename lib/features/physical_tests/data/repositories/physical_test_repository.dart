@@ -37,6 +37,17 @@ class PhysicalTestRepository {
             .toList());
   }
 
+  /// Stream satu sesi tes fisik berdasarkan ID.
+  Stream<PhysicalTestSessionModel?> watchSessionById(String sessionId) {
+    return _db
+        .collection(FirestorePaths.physicalTestSessions)
+        .doc(sessionId)
+        .snapshots()
+        .map((doc) => doc.exists
+            ? PhysicalTestSessionModel.fromFirestore(doc)
+            : null);
+  }
+
   // ── READS ──────────────────────────────────────────────────────────────
 
   Future<PhysicalTestSessionModel?> getSessionById(String sessionId) async {

@@ -34,17 +34,45 @@ class AuthRepository {
   Future<String?> getRole() async {
     final user = _auth.currentUser;
     if (user == null) return null;
+
+    return getRoleForUser(user);
+  }
+
+  Future<String?> getRoleForUser(User user) async {
+    final snapshot = await _db
+        .collection(FirestorePaths.users)
+        .where('uid', isEqualTo: user.uid)
+        .limit(1)
+        .get();
+    if (snapshot.docs.isNotEmpty) {
+      final documentRole =
+          _normalizeRole(snapshot.docs.first.data()['role'] as String?);
+      if (documentRole != null) return documentRole;
+    }
+
     final token = await user.getIdTokenResult(true);
-    return token.claims?['role'] as String?;
+    return _normalizeRole(token.claims?['role'] as String?);
+  }
+
+  String? _normalizeRole(String? role) {
+    if (role == null) return null;
+    final normalized = role.trim().toLowerCase();
+    if (normalized == 'statistican') return 'statistician';
+    const validRoles = {'manager', 'coach', 'statistician', 'player'};
+    return validRoles.contains(normalized) ? normalized : null;
   }
 
   Future<String?> getCurrentUserDocumentId() async {
     final user = _auth.currentUser;
     if (user == null) return null;
 
+    return getCurrentUserDocumentIdForUid(user.uid);
+  }
+
+  Future<String?> getCurrentUserDocumentIdForUid(String uid) async {
     final snapshot = await _db
         .collection(FirestorePaths.users)
-        .where('uid', isEqualTo: user.uid)
+        .where('uid', isEqualTo: uid)
         .limit(1)
         .get();
 

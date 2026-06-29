@@ -20,7 +20,7 @@ export const createUser = functions.https.onCall(async (data, context) => {
     email,
     password,
     fullName,
-    role,
+    role: rawRole,
     teamId,
     jerseyNumber,
     positions,
@@ -37,18 +37,20 @@ export const createUser = functions.https.onCall(async (data, context) => {
       ? [position]
       : [];
 
+  const role = normalizeRole(rawRole);
+
   if (!email || !password || !fullName || !role) {
     throw new functions.https.HttpsError(
       'invalid-argument',
-      'Email, password, nama lengkap, dan role wajib diisi'
+      'Email, password, nama lengkap, dan role valid wajib diisi'
     );
   }
 
-  const needsTeam = role === 'player' || role === 'statistician';
+  const needsTeam = role === 'player';
   if (needsTeam && !teamId) {
     throw new functions.https.HttpsError(
       'invalid-argument',
-      'Player dan Statistician wajib memilih tim'
+      'Player wajib memilih tim'
     );
   }
 
@@ -191,10 +193,16 @@ export const updateUserRole = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('permission-denied', 'Permission denied');
   }
   const { docId, uid, newRole } = data;
-  await auth.setCustomUserClaims(uid, { role: newRole });
+  const normalizedRole = normalizeRole(newRole);
+  if (!normalizedRole) {
+    throw new functions.https.HttpsError('invalid-argument', 'Role tidak valid');
+  }
+  const userDoc = docId ? await db.collection('users').doc(docId).get() : null;
+  const teamId = userDoc?.data()?.team_id ?? null;
+  await auth.setCustomUserClaims(uid, { role: normalizedRole, team_id: teamId });
   if (docId) {
     await db.collection('users').doc(docId).update({
-      role: newRole,
+      role: normalizedRole,
       updated_at: admin.firestore.FieldValue.serverTimestamp(),
     });
   }
@@ -209,7 +217,13 @@ export const deactivateUser = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('permission-denied', 'Permission denied');
   }
   const { docId, uid } = data;
-  await auth.updateUser(uid, { disabled: true });
+  if (!docId || !uid) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'docId dan uid wajib diisi'
+    );
+  }
+  await updateAuthDisabled(uid, true);
   if (docId) {
     await db.collection('users').doc(docId).update({
       is_active: false,
@@ -231,7 +245,13 @@ export const reactivateUser = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('permission-denied', 'Permission denied');
   }
   const { docId, uid } = data;
-  await auth.updateUser(uid, { disabled: false });
+  if (!docId || !uid) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'docId dan uid wajib diisi'
+    );
+  }
+  await updateAuthDisabled(uid, false);
   if (docId) {
     await db.collection('users').doc(docId).update({
       is_active: true,
@@ -239,6 +259,139 @@ export const reactivateUser = functions.https.onCall(async (data, context) => {
     });
   }
   return { success: true };
+});
+
+// ── transferPlayerTeam: pindahkan pemain SMP → SMA ──────────────────
+export const transferPlayerTeam = functions.https.onCall(async (data, context) => {
+  if (context.auth?.token?.role !== 'manager') {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'Hanya Manager yang bisa memindahkan pemain antar tim'
+    );
+  }
+
+  const { playerId, targetTeamId } = data;
+  if (!playerId || !targetTeamId) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'playerId dan targetTeamId wajib diisi'
+    );
+  }
+
+  const playerSnap = await db.collection('players').doc(playerId).get();
+  if (!playerSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'Pemain tidak ditemukan');
+  }
+
+  const player = playerSnap.data()!;
+  const currentTeamId = player.team_id as string;
+
+  if (!currentTeamId.toLowerCase().includes('smp')) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'Hanya pemain tim SMP yang bisa dipindahkan ke SMA'
+    );
+  }
+
+  if (!targetTeamId.toLowerCase().includes('sma')) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Tim tujuan harus tim SMA'
+    );
+  }
+
+  const currentGender = currentTeamId.toLowerCase().includes('putri')
+    ? 'putri'
+    : 'putra';
+  const targetGender = targetTeamId.toLowerCase().includes('putri')
+    ? 'putri'
+    : 'putra';
+  if (currentGender !== targetGender) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Tim tujuan harus sesuai gender pemain (Putra/Putri)'
+    );
+  }
+
+  const targetTeamSnap = await db.collection('teams').doc(targetTeamId).get();
+  if (!targetTeamSnap.exists) {
+    throw new functions.https.HttpsError(
+      'not-found',
+      `Tim tujuan "${targetTeamId}" tidak ditemukan`
+    );
+  }
+
+  const jerseyNumber = player.jersey_number as number;
+  const fullName = player.full_name as string;
+  const userDocId = player.user_id as string | undefined;
+
+  const jerseySnap = await db
+    .collection('players')
+    .where('team_id', '==', targetTeamId)
+    .where('jersey_number', '==', jerseyNumber)
+    .limit(1)
+    .get();
+  if (!jerseySnap.empty) {
+    throw new functions.https.HttpsError(
+      'already-exists',
+      `Nomor jersey #${jerseyNumber} sudah digunakan di tim SMA`
+    );
+  }
+
+  const newPlayerId = generatePlayerId(jerseyNumber, fullName, targetTeamId);
+  const newPlayerSnap = await db.collection('players').doc(newPlayerId).get();
+  if (newPlayerSnap.exists) {
+    throw new functions.https.HttpsError(
+      'already-exists',
+      'Pemain dengan ID yang sama sudah ada di tim SMA'
+    );
+  }
+
+  const batch = db.batch();
+
+  batch.set(db.collection('players').doc(newPlayerId), {
+    user_id: userDocId ?? null,
+    team_id: targetTeamId,
+    full_name: fullName,
+    jersey_number: jerseyNumber,
+    positions: player.positions ?? [],
+    height_cm: player.height_cm ?? null,
+    weight_kg: player.weight_kg ?? null,
+    date_of_birth: player.date_of_birth ?? null,
+    photo_url: player.photo_url ?? null,
+    photo_base64: player.photo_base64 ?? null,
+    status: 'active',
+    created_at: admin.firestore.FieldValue.serverTimestamp(),
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  batch.update(db.collection('players').doc(playerId), {
+    status: 'inactive',
+    user_id: admin.firestore.FieldValue.delete(),
+    updated_at: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  if (userDocId) {
+    const userSnap = await db.collection('users').doc(userDocId).get();
+    if (userSnap.exists) {
+      const uid = userSnap.data()?.uid as string | undefined;
+      batch.update(db.collection('users').doc(userDocId), {
+        team_id: targetTeamId,
+        player_id: newPlayerId,
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      if (uid) {
+        await auth.setCustomUserClaims(uid, {
+          role: 'player',
+          team_id: targetTeamId,
+        });
+      }
+    }
+  }
+
+  await batch.commit();
+
+  return { success: true, newPlayerId, targetTeamId };
 });
 
 // ── deleteUser: hapus akun permanen dari Auth + Firestore ───────────
@@ -270,7 +423,7 @@ export const deleteUser = functions.https.onCall(async (data, context) => {
   });
 
   await batch.commit();
-  await auth.deleteUser(uid);
+  await deleteAuthUserIfExists(uid);
   return { success: true };
 });
 
@@ -361,6 +514,35 @@ function generatePlayerId(
     .join('');
   const teamShort = teamId.replace(/_/g, '');
   return `${jerseyNumber}_${initials}_${teamShort}`;
+}
+
+function normalizeRole(role: unknown): string | null {
+  if (typeof role !== 'string') return null;
+  const normalized = role.trim().toLowerCase();
+  if (normalized === 'statistican') return 'statistician';
+  return ['manager', 'coach', 'statistician', 'player'].includes(normalized)
+    ? normalized
+    : null;
+}
+
+async function updateAuthDisabled(uid: string, disabled: boolean): Promise<void> {
+  try {
+    await auth.updateUser(uid, { disabled });
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === 'auth/user-not-found') return;
+    throw err;
+  }
+}
+
+async function deleteAuthUserIfExists(uid: string): Promise<void> {
+  try {
+    await auth.deleteUser(uid);
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === 'auth/user-not-found') return;
+    throw err;
+  }
 }
 
 function calculateFinalStats(

@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import 'package:budiutama_basketball/core/constants/firestore_paths.dart';
 import 'package:budiutama_basketball/core/errors/app_exceptions.dart';
+import 'package:budiutama_basketball/features/players/data/models/player_model.dart';
 import 'package:budiutama_basketball/shared/models/user_model.dart';
 
 /// Repository untuk Account Management.
@@ -49,6 +50,27 @@ class UserRepository {
         .snapshots()
         .map((snap) =>
             snap.docs.map((d) => UserModel.fromFirestore(d)).toList());
+  }
+
+  Stream<UserModel?> watchByUid(String uid) {
+    return _db
+        .collection(FirestorePaths.users)
+        .where('uid', isEqualTo: uid)
+        .limit(1)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.isEmpty ? null : UserModel.fromFirestore(snap.docs.first));
+  }
+
+  Stream<PlayerModel?> watchLinkedPlayer(String userDocId) {
+    return _db
+        .collection(FirestorePaths.players)
+        .where('user_id', isEqualTo: userDocId)
+        .limit(1)
+        .snapshots()
+        .map((snap) => snap.docs.isEmpty
+            ? null
+            : PlayerModel.fromFirestore(snap.docs.first));
   }
 
   // ── WRITES (via Cloud Functions) ──────────────────────────────────────
@@ -267,6 +289,26 @@ class UserRepository {
         return true;
       }
       throw FirestoreException(_friendlyFunctionError(e));
+    }
+  }
+
+  /// Pindahkan pemain SMP ke tim SMA yang sesuai (via Cloud Function).
+  Future<String?> transferPlayerTeam({
+    required String playerId,
+    required String targetTeamId,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('transferPlayerTeam');
+      final result = await callable.call({
+        'playerId': playerId,
+        'targetTeamId': targetTeamId,
+      });
+      final data = result.data as Map<String, dynamic>?;
+      return data?['success'] == true ? null : 'Gagal memindahkan pemain.';
+    } on FirebaseFunctionsException catch (e) {
+      return _friendlyFunctionError(e);
+    } catch (e) {
+      throw FirestoreException('Gagal memindahkan pemain: $e');
     }
   }
 

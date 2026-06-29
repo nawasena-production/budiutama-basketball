@@ -20,6 +20,7 @@ class EventModel with _$EventModel {
     @TimestampDateTimeConverter() @JsonKey(name: 'start_date') DateTime? startDate,
     @TimestampDateTimeConverter() @JsonKey(name: 'end_date') DateTime? endDate,
     @JsonKey(name: 'academic_year') required String academicYear,
+    @Default([]) @JsonKey(name: 'player_ids') List<String> playerIds,
     @Default('upcoming') String status,
     @Default('') String notes,
     @JsonKey(name: 'created_by') required String createdBy,

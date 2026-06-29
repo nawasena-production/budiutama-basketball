@@ -6,10 +6,12 @@ import 'package:intl/intl.dart';
 
 import 'package:budiutama_basketball/core/theme/app_colors.dart';
 import 'package:budiutama_basketball/core/utils/physical_format.dart';
+import 'package:budiutama_basketball/core/utils/team_level.dart';
 import 'package:budiutama_basketball/features/players/data/models/player_model.dart';
 import 'package:budiutama_basketball/features/players/domain/providers/players_provider.dart';
 import 'package:budiutama_basketball/features/players/presentation/widgets/add_edit_player_bottom_sheet.dart';
 import 'package:budiutama_basketball/features/players/presentation/widgets/player_status_badge.dart';
+import 'package:budiutama_basketball/features/users/domain/providers/user_provider.dart';
 import 'package:budiutama_basketball/shared/widgets/confirm_dialog.dart';
 
 class PlayerDetailPage extends ConsumerWidget {
@@ -394,6 +396,18 @@ class PlayerDetailPage extends ConsumerWidget {
               onTap: () => _confirmDeactivate(context, ref, player),
             ),
           ],
+          if (_canTransferToSma(player)) ...[
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.arrow_upward, color: Color(0xFF2E75B6)),
+              title: const Text('Pindah ke Tim SMA'),
+              subtitle: Text(
+                'Naik tingkat ke ${_formatTeamName(smaTeamIdFromSmp(player.teamId)!)}',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _confirmTransferToSma(context, ref, player),
+            ),
+          ],
           if (player.status == 'inactive') ...[
             const Divider(height: 1),
             ListTile(
@@ -438,6 +452,55 @@ class PlayerDetailPage extends ConsumerWidget {
             'Status pemain diubah menjadi ${_statusLabel(newStatus)}.',
           ),
           backgroundColor: const Color(0xFF3B6D11),
+        ),
+      );
+    }
+  }
+
+  bool _canTransferToSma(PlayerModel player) {
+    if (!_canEdit || player.status != 'active') return false;
+    if (!isSmpTeam(player.teamId)) return false;
+    return smaTeamIdFromSmp(player.teamId) != null;
+  }
+
+  Future<void> _confirmTransferToSma(
+      BuildContext context, WidgetRef ref, PlayerModel player) async {
+    final targetTeamId = smaTeamIdFromSmp(player.teamId);
+    if (targetTeamId == null) return;
+
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Pindah ke Tim SMA',
+      content: 'Pemain ${player.fullName} akan dipindahkan dari '
+          '${_formatTeamName(player.teamId)} ke ${_formatTeamName(targetTeamId)}. '
+          'Data statistik SMP tetap tersimpan.',
+      confirmLabel: 'Pindahkan',
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final error = await ref.read(userActionsProvider.notifier).transferPlayerTeam(
+          playerId: player.id,
+          targetTeamId: targetTeamId,
+        );
+
+    if (!context.mounted) return;
+
+    if (error == null) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Pemain berhasil dipindahkan ke ${_formatTeamName(targetTeamId)}.',
+          ),
+          backgroundColor: const Color(0xFF3B6D11),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Colors.red.shade700,
         ),
       );
     }

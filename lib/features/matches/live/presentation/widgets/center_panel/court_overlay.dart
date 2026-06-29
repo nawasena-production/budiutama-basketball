@@ -101,9 +101,10 @@ class _CourtOverlayState extends State<CourtOverlay> {
   void _handlePanUpdate(DragUpdateDetails details) {
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
-    final localPos = renderBox.globalToLocal(details.globalPosition);
-    final x = (localPos.dx / renderBox.size.width).clamp(0.0, 1.0);
-    final y = (localPos.dy / renderBox.size.height).clamp(0.0, 1.0);
+    final (x, y) = _normalizedCourtPosition(
+      renderBox.globalToLocal(details.globalPosition),
+      renderBox.size,
+    );
     final zone = classifyZone(x, y);
     if (zone != _hoveredZone) {
       setState(() => _hoveredZone = zone);
@@ -114,9 +115,10 @@ class _CourtOverlayState extends State<CourtOverlay> {
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
 
-    final localPos = renderBox.globalToLocal(details.globalPosition);
-    final x = (localPos.dx / renderBox.size.width).clamp(0.0, 1.0);
-    final y = (localPos.dy / renderBox.size.height).clamp(0.0, 1.0);
+    final (x, y) = _normalizedCourtPosition(
+      renderBox.globalToLocal(details.globalPosition),
+      renderBox.size,
+    );
 
     final zone = classifyZone(x, y);
     final distanceFt = calculateDistanceFt(x, y);
@@ -174,6 +176,19 @@ class _CourtOverlayState extends State<CourtOverlay> {
     if (confirmed == true && mounted) {
       _confirmAndClose(x: x, y: y, zone: zone, distanceFt: distanceFt);
     }
+  }
+
+  (double, double) _normalizedCourtPosition(Offset localPos, Size size) {
+    final courtRect = courtRectForSize(size);
+    final x = ((localPos.dx - courtRect.left) / courtRect.width).clamp(
+      0.0,
+      1.0,
+    );
+    final y = ((localPos.dy - courtRect.top) / courtRect.height).clamp(
+      0.0,
+      1.0,
+    );
+    return (x, y);
   }
 
   String _actionLabel(String actionType) {

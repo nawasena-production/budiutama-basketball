@@ -29,10 +29,22 @@ final physicalTestResultsStreamProvider =
   return ref.watch(physicalTestRepositoryProvider).watchResults(sessionId);
 });
 
+/// Stream satu sesi tes fisik berdasarkan ID.
+final physicalTestSessionProvider =
+    StreamProvider.family<PhysicalTestSessionModel?, String>((ref, sessionId) {
+  return ref
+      .watch(physicalTestRepositoryProvider)
+      .watchSessionById(sessionId);
+});
+
 // ── SELECTED SESSION ──────────────────────────────────────────────────────
 
 /// ID sesi yang sedang aktif berjalan.
 final activeSessionIdProvider = StateProvider<String?>((ref) => null);
+
+/// Team ID sesi aktif. Dibutuhkan saat sesi baru dibuat dari form dengan
+/// pilihan tim eksplisit, agar panel input menampilkan roster tim yang benar.
+final activeSessionTeamIdProvider = StateProvider<String?>((ref) => null);
 
 /// Tipe tes yang sedang dipilih di tab: beep_test | t_test | sprint_20m
 final selectedTestTypeProvider =
@@ -55,6 +67,7 @@ class PhysicalTestActionsNotifier extends AsyncNotifier<void> {
     try {
       await _repo.createSession(sessionId: sessionId, session: session);
       ref.read(activeSessionIdProvider.notifier).state = sessionId;
+      ref.read(activeSessionTeamIdProvider.notifier).state = session.teamId;
       state = const AsyncData(null);
       return true;
     } catch (e, st) {
@@ -111,7 +124,6 @@ class PhysicalTestActionsNotifier extends AsyncNotifier<void> {
     state = const AsyncLoading();
     try {
       await _repo.stopSessionEarly(sessionId);
-      ref.read(activeSessionIdProvider.notifier).state = null;
       state = const AsyncData(null);
       return true;
     } catch (e, st) {

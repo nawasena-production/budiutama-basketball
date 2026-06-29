@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:budiutama_basketball/core/utils/stats_calculator.dart';
+import 'package:budiutama_basketball/features/auth/domain/providers/auth_provider.dart';
 import 'package:budiutama_basketball/features/events/domain/providers/events_provider.dart';
 import 'package:budiutama_basketball/features/players/presentation/widgets/team_toggle_widget.dart';
 import 'package:budiutama_basketball/features/statistics/data/repositories/stats_repository.dart';
 import 'package:budiutama_basketball/features/statistics/domain/providers/stats_provider.dart';
 import 'package:budiutama_basketball/features/statistics/presentation/widgets/shot_chart_widget.dart';
+import 'package:budiutama_basketball/features/users/domain/providers/user_provider.dart';
 import 'package:budiutama_basketball/shared/widgets/app_page_scaffold.dart';
 
 /// Halaman utama Statistics Dashboard (FR-STT-01 s.d 05 / PRD Section 8).
@@ -33,6 +35,17 @@ class _StatisticsDashboardPageState
   Widget build(BuildContext context) {
     final teamId = ref.watch(activeTeamIdProvider);
     final eventsAsync = ref.watch(eventsStreamProvider(teamId));
+    final role = ref.watch(userRoleProvider).valueOrNull ?? 'player';
+    final userDocIdAsync = ref.watch(currentUserDocIdProvider);
+    final userDocId = userDocIdAsync.valueOrNull;
+    final linkedPlayerAsync = role == 'player' && userDocId != null
+        ? ref.watch(linkedPlayerForUserProvider(userDocId))
+        : null;
+    final ownPlayerId = role == 'player'
+        ? linkedPlayerAsync?.valueOrNull?.id
+        : null;
+    final isResolvingPlayer = role == 'player' &&
+        (userDocIdAsync.isLoading || linkedPlayerAsync?.isLoading == true);
 
     return AppPageScaffold(
       title: 'Statistik',
@@ -79,22 +92,50 @@ class _StatisticsDashboardPageState
             ),
           ),
           Expanded(
-            child: _selectedEventId == null
-                ? const Center(
-                    child: Text(
-                      'Pilih event untuk melihat statistik.',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
-                : _EventStatsBody(
-                    eventId: _selectedEventId!,
-                    selectedPlayerId: _selectedPlayerIdForShotChart,
-                    onPlayerSelected: (id) => setState(
-                      () => _selectedPlayerIdForShotChart = id,
-                    ),
-                  ),
+            child: _buildStatsBody(
+              role: role,
+              ownPlayerId: ownPlayerId,
+              isResolvingPlayer: isResolvingPlayer,
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatsBody({
+    required String role,
+    required String? ownPlayerId,
+    required bool isResolvingPlayer,
+  }) {
+    if (_selectedEventId == null) {
+      return const Center(
+        child: Text(
+          'Pilih event untuk melihat statistik.',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
+    if (isResolvingPlayer) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (role == 'player' && ownPlayerId == null) {
+      return const Center(
+        child: Text(
+          'Profil pemain belum terhubung dengan akun ini.',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
+    return _EventStatsBody(
+      eventId: _selectedEventId!,
+      selectedPlayerId: _selectedPlayerIdForShotChart,
+      restrictedPlayerId: ownPlayerId,
+      onPlayerSelected: (id) => setState(
+        () => _selectedPlayerIdForShotChart = id,
       ),
     );
   }
@@ -103,11 +144,13 @@ class _StatisticsDashboardPageState
 class _EventStatsBody extends ConsumerWidget {
   final String eventId;
   final String? selectedPlayerId;
+  final String? restrictedPlayerId;
   final ValueChanged<String?> onPlayerSelected;
 
   const _EventStatsBody({
     required this.eventId,
     required this.selectedPlayerId,
+    required this.restrictedPlayerId,
     required this.onPlayerSelected,
   });
 
@@ -128,8 +171,22 @@ class _EventStatsBody extends ConsumerWidget {
           );
         }
 
-        final sorted = [...stats]
+        final visibleStats = restrictedPlayerId == null
+            ? stats
+            : stats.where((s) => s.playerId == restrictedPlayerId).toList();
+
+        if (visibleStats.isEmpty) {
+          return const Center(
+            child: Text(
+              'Belum ada statistik untuk pemain ini pada event terpilih.',
+              style: TextStyle(color: Colors.grey),
+            ),
+          );
+        }
+
+        final sorted = [...visibleStats]
           ..sort((a, b) => b.totalPoints.compareTo(a.totalPoints));
+        final effectivePlayerFilter = restrictedPlayerId ?? selectedPlayerId;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -143,8 +200,10 @@ class _EventStatsBody extends ConsumerWidget {
               const SizedBox(height: 8),
               _LeaderboardTable(
                 stats: sorted,
-                selectedPlayerId: selectedPlayerId,
-                onPlayerTap: onPlayerSelected,
+                selectedPlayerId: effectivePlayerFilter,
+                onPlayerTap: restrictedPlayerId == null
+                    ? onPlayerSelected
+                    : (_) {},
               ),
               const SizedBox(height: 24),
               const Text(
@@ -153,7 +212,9 @@ class _EventStatsBody extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                selectedPlayerId == null
+                restrictedPlayerId != null
+                    ? 'Menampilkan statistik pribadi pemain.'
+                    : selectedPlayerId == null
                     ? 'Menampilkan seluruh tembakan tim — tap nama pemain di '
                         'leaderboard untuk filter per pemain.'
                     : 'Menampilkan tembakan pemain terpilih. Tap lagi untuk '
@@ -163,7 +224,7 @@ class _EventStatsBody extends ConsumerWidget {
               const SizedBox(height: 8),
               _EventShotChart(
                 eventId: eventId,
-                playerIdFilter: selectedPlayerId,
+                playerIdFilter: effectivePlayerFilter,
               ),
             ],
           ),

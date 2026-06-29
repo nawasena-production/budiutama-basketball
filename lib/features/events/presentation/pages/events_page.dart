@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:budiutama_basketball/features/events/data/models/event_model.dart';
 import 'package:budiutama_basketball/features/events/domain/providers/events_provider.dart';
 import 'package:budiutama_basketball/features/events/presentation/widgets/add_event_bottom_sheet.dart';
+import 'package:budiutama_basketball/features/players/presentation/widgets/team_toggle_widget.dart';
 import 'package:budiutama_basketball/shared/widgets/app_page_scaffold.dart';
 import 'package:budiutama_basketball/shared/widgets/empty_state_widget.dart';
 
@@ -17,6 +18,7 @@ class EventsPage extends ConsumerWidget {
   final String teamId;
   final String role;
   final String academicYear;
+  final String createdBy;
 
   /// Callback saat event dipilih (navigasi ke daftar match event tersebut).
   final void Function(EventModel event)? onEventSelected;
@@ -26,6 +28,7 @@ class EventsPage extends ConsumerWidget {
     required this.teamId,
     required this.role,
     required this.academicYear,
+    required this.createdBy,
     this.onEventSelected,
   });
 
@@ -37,6 +40,7 @@ class EventsPage extends ConsumerWidget {
       title: 'Events',
       subtitle: 'Turnamen, agenda kompetisi, dan konteks pertandingan',
       icon: Icons.emoji_events_outlined,
+      bottom: const TeamToggleWidget(),
       floatingActionButton: role == 'manager'
           ? FloatingActionButton(
               onPressed: () => _showAddEventSheet(context),
@@ -116,6 +120,7 @@ class EventsPage extends ConsumerWidget {
       builder: (_) => AddEventBottomSheet(
         teamId: teamId,
         academicYear: academicYear,
+        createdBy: createdBy,
       ),
     );
   }
@@ -374,6 +379,10 @@ class _EventCard extends ConsumerWidget {
         return 'Porseni';
       case 'popda':
         return 'Popda';
+      case 'dbl':
+        return 'DBL';
+      case 'liga_pelajar':
+        return 'Liga Pelajar';
       case 'antar_sekolah':
         return 'Antar Sekolah';
       case 'persahabatan':

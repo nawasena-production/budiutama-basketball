@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:budiutama_basketball/features/training/data/models/training_session_model.dart';
 import 'package:budiutama_basketball/features/training/domain/providers/training_provider.dart';
 import 'package:budiutama_basketball/features/training/presentation/widgets/add_training_bottom_sheet.dart';
+import 'package:budiutama_basketball/features/players/presentation/widgets/team_toggle_widget.dart';
 import 'package:budiutama_basketball/shared/widgets/app_page_scaffold.dart';
 import 'package:budiutama_basketball/shared/widgets/confirm_dialog.dart';
 import 'package:budiutama_basketball/shared/widgets/empty_state_widget.dart';
@@ -58,10 +59,28 @@ class _TrainingPageState extends ConsumerState<TrainingPage>
 
   @override
   Widget build(BuildContext context) {
+    final activeTeamId = ref.watch(activeTeamIdProvider);
+    final effectiveTeamId =
+        activeTeamId.isNotEmpty ? activeTeamId : widget.teamId;
+
     return AppPageScaffold(
       title: 'Latihan',
       subtitle: 'Jadwal dan histori program latihan tim',
       icon: Icons.calendar_today_outlined,
+      bottom: Column(
+        children: [
+          const TeamToggleWidget(),
+          TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: const [
+              Tab(text: 'Mendatang'),
+              Tab(text: 'Histori'),
+            ],
+          ),
+        ],
+      ),
       floatingActionButton: widget.role == 'manager'
           ? FloatingActionButton(
               onPressed: _showAddTrainingSheet,
@@ -69,26 +88,17 @@ class _TrainingPageState extends ConsumerState<TrainingPage>
               child: const Icon(Icons.add),
             )
           : null,
-      bottom: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        tabs: const [
-          Tab(text: 'Mendatang'),
-          Tab(text: 'Histori'),
-        ],
-      ),
       child: TabBarView(
         controller: _tabController,
         children: [
           _TrainingList(
-            teamId: widget.teamId,
+            teamId: effectiveTeamId,
             role: widget.role,
             isUpcoming: true,
             onCancel: _cancelSession,
           ),
           _TrainingList(
-            teamId: widget.teamId,
+            teamId: effectiveTeamId,
             role: widget.role,
             isUpcoming: false,
             onCancel: _cancelSession,
@@ -99,12 +109,16 @@ class _TrainingPageState extends ConsumerState<TrainingPage>
   }
 
   void _showAddTrainingSheet() {
+    final activeTeamId = ref.read(activeTeamIdProvider);
+    final effectiveTeamId =
+        activeTeamId.isNotEmpty ? activeTeamId : widget.teamId;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => AddTrainingBottomSheet(
-        teamId: widget.teamId,
+        teamId: effectiveTeamId,
         createdBy: widget.createdBy,
       ),
     );
@@ -244,6 +258,32 @@ class _TrainingCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SizedBox(width: 6),
+                // Label tim
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEEDFE),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.group_outlined,
+                          size: 12, color: Color(0xFF3C3489)),
+                      const SizedBox(width: 4),
+                      Text(
+                        _teamLabel(session.teamId),
+                        style: const TextStyle(
+                          color: Color(0xFF3C3489),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const Spacer(),
                 // Dibatalkan badge
                 if (session.isCancelled)
@@ -335,6 +375,17 @@ class _TrainingCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Derive label tim yang readable dari teamId.
+  /// Contoh: "putra_2526" → "SMA Putra"
+  ///         "smp_putri_2526" → "SMP Putri"
+  String _teamLabel(String teamId) {
+    final id = teamId.toLowerCase();
+    final level = id.contains('smp') ? 'SMP' : 'SMA';
+    final gender =
+        (id.contains('putri') || id.contains('female')) ? 'Putri' : 'Putra';
+    return '$level $gender';
   }
 
   ({String label, IconData icon, Color bgColor, Color textColor}) _typeConfig(
