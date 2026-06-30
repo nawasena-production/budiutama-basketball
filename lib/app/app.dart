@@ -86,6 +86,11 @@ class App extends ConsumerWidget {
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
   final userRoleAsync = ref.watch(userRoleProvider);
+  // Watch pendingOtpProvider di sini agar router rebuild saat OTP di-set
+  // setelah login. Tanpa ini, router sudah redirect ke dashboard sebelum
+  // _handleLogin sempat set pendingOtpProvider (race condition — login page
+  // ter-unmount lebih dulu karena authStateStream emit saat signIn() selesai).
+  final pendingOtp = ref.watch(pendingOtpProvider);
   final notifier = GoRouterRefreshStream(
     ref.watch(authRepositoryProvider).authStateStream,
   );
@@ -100,7 +105,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = authState.valueOrNull != null;
       final location = state.matchedLocation;
       final isAuthRoute = location == '/login' || location == '/otp';
-      final pendingOtp = ref.read(pendingOtpProvider);
 
       if (!isLoggedIn && !isAuthRoute) return '/login';
       if (isLoggedIn && pendingOtp != null && location != '/otp') {
