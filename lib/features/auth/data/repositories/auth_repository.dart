@@ -89,13 +89,6 @@ class AuthRepository {
     return trustedDeviceIds.contains(deviceHash);
   }
 
-  Future<void> addTrustedDevice(String userId, String deviceHash) async {
-    await _db.doc(FirestorePaths.user(userId)).update({
-      'trusted_device_ids': FieldValue.arrayUnion([deviceHash]),
-      'updated_at': FieldValue.serverTimestamp(),
-    });
-  }
-
   /// Kirim kode OTP 6-digit ke email user — dipanggil sebelum navigasi
   /// ke halaman OTP. Kode di-generate dan disimpan oleh Cloud Function,
   /// sehingga client tidak pernah melihat kode mentah (C1/C2).
