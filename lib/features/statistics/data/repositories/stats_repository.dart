@@ -89,7 +89,10 @@ class ShotChartEntry {
 /// SUDAH SELESAI — tidak perlu real-time sync, query lebih hemat kuota
 /// Firestore dengan fetch sekali per buka halaman / per filter berubah.
 class StatsRepository {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  StatsRepository({FirebaseFirestore? firestore})
+      : _db = firestore ?? FirebaseFirestore.instance;
+
+  final FirebaseFirestore _db;
 
   /// Statistik seluruh pemain dalam SATU pertandingan — dipakai untuk
   /// box score dan sebagai sumber data Live Player Stats versi
@@ -156,10 +159,13 @@ class StatsRepository {
     final matchIds = await getFinishedMatchIdsForEvent(eventId);
     if (matchIds.isEmpty) return [];
 
+    final allStatsList = await Future.wait(
+      matchIds.map((id) => getPlayerStatsForMatch(id)),
+    );
+
     final Map<String, _AggregateAccumulator> accByPlayer = {};
 
-    for (final matchId in matchIds) {
-      final statsList = await getPlayerStatsForMatch(matchId);
+    for (final statsList in allStatsList) {
       for (final s in statsList) {
         final acc = accByPlayer.putIfAbsent(
           s.playerId,

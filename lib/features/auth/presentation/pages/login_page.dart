@@ -1,9 +1,13 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:budiutama_basketball/core/errors/app_exceptions.dart';
 import 'package:budiutama_basketball/core/theme/app_colors.dart';
+import 'package:budiutama_basketball/core/constants/role_navigation.dart';
+import 'package:budiutama_basketball/core/utils/device_id_helper.dart';
 import 'package:budiutama_basketball/features/auth/domain/providers/auth_provider.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -111,11 +115,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       );
       final role = await repository.getRole();
       final userId = await repository.getCurrentUserDocumentId();
-      final deviceHash = _deviceHash(credential.user?.uid ?? '');
+      final deviceHash = _getDeviceId();
 
       if ((role == 'coach' || role == 'manager') && userId != null) {
         final trusted = await repository.isDeviceTrusted(userId, deviceHash);
         if (!trusted) {
+          await repository.sendVerificationCode(userId);
           ref.read(pendingOtpProvider.notifier).state = PendingOtp(
             email: credential.user?.email ?? _emailController.text.trim(),
             userId: userId,
@@ -136,7 +141,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       }
 
       ref.read(pendingOtpProvider.notifier).state = null;
-      if (mounted) context.go('/dashboard');
+      if (mounted) context.go(RoleNavigation.defaultPath(role));
     } on AuthException catch (error) {
       _showGenericError(error.message);
     } catch (_) {
@@ -146,12 +151,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
-  String _deviceHash(String uid) {
-    final raw = '$uid|${Uri.base.host}|${Theme.of(context).platform.name}';
-    final hash = raw.codeUnits.fold<int>(17, (value, unit) {
-      return (value * 37 + unit) & 0x7fffffff;
-    });
-    return 'device_$hash';
+  /// Kembalikan device ID yang stabil dan persisten.
+  /// Di Flutter Web, ID disimpan di localStorage sehingga tetap sama
+  /// lintas sesi browser. Di platform lain, ID baru di-generate tiap sesi
+  /// (tanpa shared_preferences). Format: 'device_{32 hex chars}'.
+  String _getDeviceId() {
+    var id = getPersistedDeviceId();
+    if (id.isEmpty) {
+      final rng = math.Random.secure();
+      id = List.generate(16, (_) => rng.nextInt(256))
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join();
+      persistDeviceId(id);
+    }
+    return 'device_$id';
   }
 
   void _showGenericError(String message) {

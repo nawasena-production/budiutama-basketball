@@ -36,7 +36,7 @@ class _AddTrainingBottomSheetState
   final _titleController = TextEditingController();
   final _locationController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _durationController = TextEditingController(text: '90');
+  final _durationController = TextEditingController(text: '120');
 
   String _sessionType = 'physical';
   late String _teamId;
@@ -200,7 +200,7 @@ class _AddTrainingBottomSheetState
                         _buildLabel('Durasi (menit)'),
                         TextFormField(
                           controller: _durationController,
-                          decoration: _inputDecoration('90'),
+                          decoration: _inputDecoration('120'),
                           keyboardType: TextInputType.number,
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
@@ -417,7 +417,7 @@ class _AddTrainingBottomSheetState
         scheduledAt: scheduledAt,
       );
 
-      final duration = int.tryParse(_durationController.text) ?? 90;
+      final duration = int.tryParse(_durationController.text) ?? 120;
 
       final session = TrainingSessionModel(
         id: sessionId,

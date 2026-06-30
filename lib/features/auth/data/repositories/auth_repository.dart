@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:budiutama_basketball/core/constants/firestore_paths.dart';
@@ -14,7 +15,7 @@ class AuthRepository {
   final FirebaseAuth _auth;
   final FirebaseFirestore _db;
 
-  Stream<User?> get authStateStream => _auth.authStateChanges();
+  Stream<User?> get authStateStream => _auth.idTokenChanges();
 
   Future<UserCredential> signIn(String email, String password) async {
     try {
@@ -93,5 +94,42 @@ class AuthRepository {
       'trusted_device_ids': FieldValue.arrayUnion([deviceHash]),
       'updated_at': FieldValue.serverTimestamp(),
     });
+  }
+
+  /// Kirim kode OTP 6-digit ke email user — dipanggil sebelum navigasi
+  /// ke halaman OTP. Kode di-generate dan disimpan oleh Cloud Function,
+  /// sehingga client tidak pernah melihat kode mentah (C1/C2).
+  Future<void> sendVerificationCode(String userId) async {
+    try {
+      final callable = FirebaseFunctions.instance
+          .httpsCallable('sendDeviceVerificationCode');
+      await callable.call({'userId': userId});
+    } on FirebaseFunctionsException catch (e) {
+      throw AuthException(e.message ?? 'Gagal mengirim kode verifikasi.');
+    } catch (_) {
+      throw const AuthException('Gagal mengirim kode verifikasi.');
+    }
+  }
+
+  /// Validasi kode OTP di server lalu tambahkan device ke trusted list.
+  /// Melempar [AuthException] jika kode salah, kedaluwarsa, atau tidak ada.
+  Future<void> verifyAndTrustDevice(
+    String userId,
+    String code,
+    String deviceHash,
+  ) async {
+    try {
+      final callable =
+          FirebaseFunctions.instance.httpsCallable('verifyDeviceCode');
+      await callable.call({
+        'userId': userId,
+        'code': code,
+        'deviceHash': deviceHash,
+      });
+    } on FirebaseFunctionsException catch (e) {
+      throw AuthException(e.message ?? 'Kode verifikasi tidak valid.');
+    } catch (_) {
+      throw const AuthException('Verifikasi gagal. Silakan coba lagi.');
+    }
   }
 }

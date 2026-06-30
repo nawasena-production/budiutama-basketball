@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:budiutama_basketball/core/constants/role_navigation.dart';
+import 'package:budiutama_basketball/core/errors/app_exceptions.dart';
 import 'package:budiutama_basketball/features/auth/domain/providers/auth_provider.dart';
 
 class OtpVerificationPage extends ConsumerStatefulWidget {
@@ -28,6 +30,7 @@ class _OtpVerificationPageState extends ConsumerState<OtpVerificationPage> {
   Timer? _timer;
   int _cooldown = 60;
   bool _isLoading = false;
+  bool _isResending = false;
 
   @override
   void initState() {
@@ -121,11 +124,15 @@ class _OtpVerificationPageState extends ConsumerState<OtpVerificationPage> {
                   ),
                   const SizedBox(height: 12),
                   TextButton(
-                    onPressed: _cooldown == 0 ? _resend : null,
+                    onPressed: (_cooldown == 0 && !_isResending && !_isLoading)
+                        ? _resend
+                        : null,
                     child: Text(
-                      _cooldown == 0
-                          ? 'Kirim ulang kode'
-                          : 'Kirim ulang dalam $_cooldown detik',
+                      _isResending
+                          ? 'Mengirim...'
+                          : _cooldown == 0
+                              ? 'Kirim ulang kode'
+                              : 'Kirim ulang dalam $_cooldown detik',
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
@@ -146,18 +153,24 @@ class _OtpVerificationPageState extends ConsumerState<OtpVerificationPage> {
     final code = _codeController.text.trim();
 
     if (userId == null || deviceHash == null || code.length != 6) {
-      _showMessage('Kode verifikasi tidak valid.');
+      _showMessage('Masukkan 6 digit kode verifikasi.');
       return;
     }
 
     setState(() => _isLoading = true);
     try {
-      await ref.read(authRepositoryProvider).addTrustedDevice(
+      // Validasi kode di server — Cloud Function verifyDeviceCode memeriksa
+      // kode, expiry, lalu menambahkan deviceHash ke trusted_device_ids (C1).
+      await ref.read(authRepositoryProvider).verifyAndTrustDevice(
             userId,
+            code,
             deviceHash,
           );
       ref.read(pendingOtpProvider.notifier).state = null;
-      if (mounted) context.go('/dashboard');
+      final role = await ref.read(authRepositoryProvider).getRole();
+      if (mounted) context.go(RoleNavigation.defaultPath(role));
+    } on AuthException catch (e) {
+      _showMessage(e.message);
     } catch (_) {
       _showMessage('Verifikasi gagal. Silakan coba lagi.');
     } finally {
@@ -165,9 +178,25 @@ class _OtpVerificationPageState extends ConsumerState<OtpVerificationPage> {
     }
   }
 
-  void _resend() {
-    _showMessage('Kode verifikasi baru telah dikirim.');
-    _startCooldown();
+  Future<void> _resend() async {
+    final pending = ref.read(pendingOtpProvider);
+    final userId = widget.userId.isNotEmpty ? widget.userId : pending?.userId;
+    if (userId == null) return;
+
+    setState(() => _isResending = true);
+    try {
+      // Kirim ulang kode via Cloud Function — kode baru di-generate
+      // server-side dan dikirim ke email user (C2).
+      await ref.read(authRepositoryProvider).sendVerificationCode(userId);
+      _showMessage('Kode verifikasi baru telah dikirim ke email Anda.');
+      _startCooldown();
+    } on AuthException catch (e) {
+      _showMessage(e.message);
+    } catch (_) {
+      _showMessage('Gagal mengirim kode. Silakan coba lagi.');
+    } finally {
+      if (mounted) setState(() => _isResending = false);
+    }
   }
 
   void _startCooldown() {

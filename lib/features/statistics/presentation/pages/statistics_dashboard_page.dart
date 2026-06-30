@@ -262,6 +262,7 @@ class _LeaderboardTable extends StatelessWidget {
           DataColumn(label: Text('APG'), numeric: true),
           DataColumn(label: Text('SPG'), numeric: true),
           DataColumn(label: Text('BPG'), numeric: true),
+          DataColumn(label: Text('EF'), numeric: true),
           DataColumn(label: Text('FG%'), numeric: true),
           DataColumn(label: Text('FT%'), numeric: true),
         ],
@@ -275,6 +276,21 @@ class _LeaderboardTable extends StatelessWidget {
           );
           final ftPct =
               StatsCalculator.ftPercentage(s.totalFtMade, s.totalFtAttempted);
+          final efficiency = StatsCalculator.efficiency(
+            points: s.totalPoints,
+            offensiveRebounds: s.totalOffensiveRebounds,
+            defensiveRebounds: s.totalDefensiveRebounds,
+            assists: s.totalAssists,
+            steals: s.totalSteals,
+            blocks: s.totalBlocks,
+            fg2Made: s.totalFg2Made,
+            fg2Attempted: s.totalFg2Attempted,
+            fg3Made: s.totalFg3Made,
+            fg3Attempted: s.totalFg3Attempted,
+            ftMade: s.totalFtMade,
+            ftAttempted: s.totalFtAttempted,
+            turnovers: s.totalTurnovers,
+          );
 
           return DataRow(
             selected: isSelected,
@@ -288,6 +304,7 @@ class _LeaderboardTable extends StatelessWidget {
               DataCell(Text(s.apg.toStringAsFixed(1))),
               DataCell(Text(s.spg.toStringAsFixed(1))),
               DataCell(Text(s.bpg.toStringAsFixed(1))),
+              DataCell(Text('$efficiency')),
               DataCell(Text('${fgPct.toStringAsFixed(0)}%')),
               DataCell(Text('${ftPct.toStringAsFixed(0)}%')),
             ],
@@ -337,11 +354,9 @@ final _eventShotChartProvider =
     FutureProvider.family<List<ShotChartEntry>, String>((ref, eventId) async {
   final repo = ref.read(statsRepositoryProvider);
   final matchIds = await repo.getFinishedMatchIdsForEvent(eventId);
-
-  final List<ShotChartEntry> all = [];
-  for (final matchId in matchIds) {
-    final entries = await repo.getShotPointsForMatch(matchId);
-    all.addAll(entries);
-  }
-  return all;
+  if (matchIds.isEmpty) return [];
+  final allLists = await Future.wait(
+    matchIds.map((id) => repo.getShotPointsForMatch(id)),
+  );
+  return allLists.expand((entries) => entries).toList();
 });

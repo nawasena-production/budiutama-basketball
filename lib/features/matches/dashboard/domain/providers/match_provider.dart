@@ -91,6 +91,30 @@ class MatchActionsNotifier extends AsyncNotifier<void> {
     }
   }
 
+  Future<bool> transitionLiveState({
+    required String matchId,
+    required String nextState,
+    required double currentTimeRemaining,
+    required double quarterDurationSeconds,
+    required double otDurationSeconds,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      await _repo.transitionLiveState(
+        matchId: matchId,
+        nextState: nextState,
+        currentTimeRemaining: currentTimeRemaining,
+        quarterDurationSeconds: quarterDurationSeconds,
+        otDurationSeconds: otDurationSeconds,
+      );
+      state = const AsyncData(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      return false;
+    }
+  }
+
   Future<bool> updateTimerConfig(
     String matchId, {
     required int quarterDurationMinutes,
@@ -126,6 +150,24 @@ class MatchActionsNotifier extends AsyncNotifier<void> {
         matchId: matchId,
         starters: starters,
         quarterDurationMinutes: quarterDurationMinutes,
+      );
+      state = const AsyncData(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      return false;
+    }
+  }
+
+  Future<bool> startFirstQuarter({
+    required String matchId,
+    required double fullDurationSeconds,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      await _repo.startFirstQuarter(
+        matchId: matchId,
+        fullDurationSeconds: fullDurationSeconds,
       );
       state = const AsyncData(null);
       return true;

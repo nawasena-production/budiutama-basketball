@@ -23,10 +23,22 @@ final authStateProvider = StreamProvider<User?>((ref) {
   return ref.watch(authRepositoryProvider).authStateStream;
 });
 
-final userRoleProvider = FutureProvider<String?>((ref) async {
-  final user = await ref.watch(authStateProvider.selectAsync((user) => user));
-  if (user == null) return null;
-  return ref.watch(authRepositoryProvider).getRoleForUser(user);
+/// UID pengguna yang sedang login — dipakai sebagai kunci session agar
+/// provider role/profil tidak memakai cache dari user sebelumnya.
+final authUidProvider = Provider<String?>((ref) {
+  return ref.watch(authStateProvider).valueOrNull?.uid;
+});
+
+final userRoleProvider = FutureProvider.autoDispose<String?>((ref) async {
+  final uid = ref.watch(authUidProvider);
+  if (uid == null) return null;
+  // ref.read (bukan watch) — authUidProvider sudah cukup sebagai trigger.
+  // ref.watch(authStateProvider) akan rebuild setiap token refresh (~1 jam)
+  // karena idTokenChanges() memancarkan event baru meski UID tidak berubah,
+  // menyebabkan Firestore read yang tidak perlu (L3).
+  final user = ref.read(authStateProvider).valueOrNull;
+  if (user == null || user.uid != uid) return null;
+  return ref.read(authRepositoryProvider).getRoleForUser(user);
 });
 
 final pendingOtpProvider = StateProvider<PendingOtp?>((ref) => null);
@@ -38,17 +50,16 @@ final pendingOtpProvider = StateProvider<PendingOtp?>((ref) => null);
 ///
 /// Digunakan sebagai nilai field `created_by` saat membuat event,
 /// training session, match, injury report, dll.
-final currentUserDocIdProvider = FutureProvider<String?>((ref) async {
-  final user = await ref.watch(authStateProvider.selectAsync((user) => user));
-  if (user == null) return null;
-  return ref
-      .watch(authRepositoryProvider)
-      .getCurrentUserDocumentIdForUid(user.uid);
+final currentUserDocIdProvider =
+    FutureProvider.autoDispose<String?>((ref) async {
+  final uid = ref.watch(authUidProvider);
+  if (uid == null) return null;
+  return ref.read(authRepositoryProvider).getCurrentUserDocumentIdForUid(uid);
 });
 
 /// UID Firebase Auth dari pengguna yang sedang login.
 /// Digunakan untuk keperluan yang membutuhkan Firebase Auth UID
 /// (berbeda dengan Document ID di Firestore).
 final currentUserUidProvider = Provider<String?>((ref) {
-  return ref.watch(authStateProvider).valueOrNull?.uid;
+  return ref.watch(authUidProvider);
 });

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onInjuryStatusChanged = exports.onMatchEventCreated = exports.onMatchFinished = exports.deleteUser = exports.transferPlayerTeam = exports.reactivateUser = exports.deactivateUser = exports.updateUserRole = exports.createUser = void 0;
+exports.onInjuryStatusChanged = exports.onMatchEventCreated = exports.onMatchFinished = exports.verifyDeviceCode = exports.sendDeviceVerificationCode = exports.deleteUser = exports.transferPlayerTeam = exports.reactivateUser = exports.deactivateUser = exports.updateUserRole = exports.createUser = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 admin.initializeApp();
@@ -349,6 +349,81 @@ exports.deleteUser = functions.https.onCall(async (data, context) => {
     await deleteAuthUserIfExists(uid);
     return { success: true };
 });
+// ── sendDeviceVerificationCode: Kirim kode OTP 6-digit ke email user ──
+// Kode disimpan di dokumen user Firestore dengan expiry 10 menit.
+// Email dikirim via koleksi 'mail' — memerlukan Firebase Extension
+// "Trigger Email from Firestore" yang dipasang di Firebase Console.
+exports.sendDeviceVerificationCode = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Tidak terautentikasi.');
+    }
+    const { userId } = data;
+    if (!userId) {
+        throw new functions.https.HttpsError('invalid-argument', 'userId wajib diisi.');
+    }
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'Pengguna tidak ditemukan.');
+    }
+    const userData = userDoc.data();
+    if (userData['uid'] !== context.auth.uid) {
+        throw new functions.https.HttpsError('permission-denied', 'Akses ditolak.');
+    }
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + 10 * 60 * 1000);
+    await db.collection('users').doc(userId).update({
+        otp_code: code,
+        otp_expires_at: expiresAt,
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await db.collection('mail').add({
+        to: [userData['email']],
+        message: {
+            subject: 'Kode Verifikasi Device — Budi Utama Basketball',
+            text: `Kode verifikasi perangkat Anda: ${code}\nKode berlaku selama 10 menit. Jangan bagikan kode ini.`,
+            html: `<p>Kode verifikasi perangkat Anda:</p><h2 style="letter-spacing:8px;font-family:monospace">${code}</h2><p>Kode berlaku <strong>10 menit</strong>. Jangan bagikan kode ini kepada siapa pun.</p>`,
+        },
+    });
+    return { success: true };
+});
+// ── verifyDeviceCode: Validasi kode OTP lalu tambahkan device terpercaya ─
+// Setelah verifikasi berhasil, kode dihapus dari dokumen user dan
+// deviceHash ditambahkan ke trusted_device_ids.
+exports.verifyDeviceCode = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Tidak terautentikasi.');
+    }
+    const { userId, code, deviceHash } = data;
+    if (!userId || !code || !deviceHash) {
+        throw new functions.https.HttpsError('invalid-argument', 'Parameter tidak lengkap.');
+    }
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'Pengguna tidak ditemukan.');
+    }
+    const userData = userDoc.data();
+    if (userData['uid'] !== context.auth.uid) {
+        throw new functions.https.HttpsError('permission-denied', 'Akses ditolak.');
+    }
+    const storedCode = userData['otp_code'];
+    const expiresAt = userData['otp_expires_at'];
+    if (!storedCode || !expiresAt) {
+        throw new functions.https.HttpsError('failed-precondition', 'Kode tidak ditemukan. Minta kode baru.');
+    }
+    if (expiresAt.toDate() < new Date()) {
+        throw new functions.https.HttpsError('deadline-exceeded', 'Kode sudah kedaluwarsa. Minta kode baru.');
+    }
+    if (storedCode !== code) {
+        throw new functions.https.HttpsError('invalid-argument', 'Kode verifikasi tidak valid.');
+    }
+    await db.collection('users').doc(userId).update({
+        trusted_device_ids: admin.firestore.FieldValue.arrayUnion([deviceHash]),
+        otp_code: admin.firestore.FieldValue.delete(),
+        otp_expires_at: admin.firestore.FieldValue.delete(),
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { success: true };
+});
 // ── onMatchFinished: Hitung statistik final saat POST_MATCH ──────────
 // Sesuai Dev Guide Step 15.1 (versi final, termasuk update status match).
 exports.onMatchFinished = functions.firestore
@@ -380,27 +455,14 @@ exports.onMatchFinished = functions.firestore
         finished_at: admin.firestore.FieldValue.serverTimestamp(),
     });
 });
-// ── onMatchEventCreated: Audit log otomatis ────────────────────────
-// Sesuai Dev Guide Step 15.1 / SRS FR-AUD-01.
+// ── onMatchEventCreated: Match events already live under matches/{id}/events ─
+// Statistik live match tidak ditulis lagi ke audit_logs agar audit log tidak
+// menumpuk untuk setiap touch/shot/rebound. Event pertandingan tetap tersimpan
+// immutable di subcollection match dan menjadi sumber audit statistiknya.
 exports.onMatchEventCreated = functions.firestore
     .document('matches/{matchId}/events/{eventId}')
-    .onCreate(async (snap, context) => {
-    const event = snap.data();
-    if (!event || event.action_type === 'UNDO')
-        return; // jangan audit UNDO event
-    await db.collection('audit_logs').add({
-        user_id: event.created_by,
-        action_type: 'MATCH_EVENT_CREATED',
-        entity_type: 'match_event',
-        entity_id: context.params.eventId,
-        new_value: {
-            match_id: context.params.matchId,
-            action_type: event.action_type,
-            player_id: event.player_id,
-            quarter: event.quarter,
-        },
-        created_at: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    .onCreate(async () => {
+    return;
 });
 // ── onInjuryStatusChanged: Update player status saat cedera cleared ─
 // Sesuai Dev Guide Step 15.1 / SRS FR-INJ-02.
@@ -470,8 +532,13 @@ function calculateFinalStats(eventDocs) {
         const e = doc.data();
         if (e.is_opponent || !e.player_id)
             continue;
-        // Derive stats doc ID dari player_id
-        const key = e.player_id.replace(/_putra.*/, '').replace(/_putri.*/, '');
+        // Derive stats doc ID: ambil dua bagian pertama dari player_id
+        // (format: {jersey}_{inisial}_{teamId}) → '{jersey}_{inisial}'.
+        // Sama dengan derivePlayerStatsDocId() di match_action_provider.dart.
+        const pidParts = e.player_id.split('_');
+        const key = pidParts.length >= 2
+            ? `${pidParts[0]}_${pidParts[1]}`
+            : e.player_id;
         if (!stats[key])
             stats[key] = initStats();
         switch (e.action_type) {

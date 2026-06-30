@@ -88,8 +88,7 @@ void main() {
 
     test('MISS_3PT di MEDIUM_CENTER = TIDAK konsisten (false)', () {
       expect(
-          validateZoneActionConsistency('MISS_3PT', 'MEDIUM_CENTER'),
-          isFalse);
+          validateZoneActionConsistency('MISS_3PT', 'MEDIUM_CENTER'), isFalse);
     });
   });
 
@@ -136,7 +135,8 @@ void main() {
     ];
 
     for (final actionType in actionTypesAffectingStats) {
-      test('$actionType — increment dan decrement punya field yang sama persis', () {
+      test('$actionType — increment dan decrement punya field yang sama persis',
+          () {
         final inc = buildStatsIncrement(actionType, null);
         final dec = buildStatsDecrement(actionType, null);
 
@@ -171,7 +171,8 @@ void main() {
       expect(dec.containsKey('shot_zones.PAINT.attempted'), isTrue);
     });
 
-    test('MISS_3PT dengan zone — hanya attempted yang increment, bukan made', () {
+    test('MISS_3PT dengan zone — hanya attempted yang increment, bukan made',
+        () {
       final inc = buildStatsIncrement('MISS_3PT', 'CENTER_3');
 
       expect(inc.containsKey('shot_zones.CENTER_3.attempted'), isTrue);
@@ -195,6 +196,20 @@ void main() {
 
     test('action type UNDO menghasilkan map kosong (tidak rekursif)', () {
       expect(buildStatsIncrement('UNDO', null), isEmpty);
+    });
+
+    test('expandDottedFieldPaths mengubah shot_zones menjadi nested map', () {
+      final expanded = expandDottedFieldPaths(
+        buildStatsIncrement('2PT_MADE', 'PAINT'),
+      );
+
+      expect(expanded.containsKey('shot_zones.PAINT.made'), isFalse);
+      expect(expanded['shot_zones'], isA<Map<String, dynamic>>());
+
+      final shotZones = expanded['shot_zones'] as Map<String, dynamic>;
+      final paint = shotZones['PAINT'] as Map<String, dynamic>;
+      expect(paint['made'], isA<FieldValue>());
+      expect(paint['attempted'], isA<FieldValue>());
     });
   });
 }

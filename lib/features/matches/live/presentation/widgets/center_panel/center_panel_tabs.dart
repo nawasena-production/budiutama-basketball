@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -112,7 +113,7 @@ class _TabItem extends StatelessWidget {
   }
 }
 
-/// Tab 1 — Input Mode. Menggabungkan: label pemain terpilih, grid 13
+/// Tab 1 — Input Mode. Menggabungkan: label pemain terpilih, grid 12
 /// tombol aksi, court overlay (muncul sebagai overlay penuh saat
 /// dibutuhkan), dan tombol undo.
 class _InputModeTab extends ConsumerWidget {
@@ -144,13 +145,17 @@ class _InputModeTab extends ConsumerWidget {
                 style: const TextStyle(color: Color(0xFF475569), fontSize: 11),
               ),
               const SizedBox(height: 8),
-              ActionButtons(
-                enabled: selectedLineup != null,
-                onActionTap: (spec) => _handleActionTap(
-                  context: context,
-                  ref: ref,
-                  spec: spec,
-                  selectedPlayerId: selectedLineup?.playerId,
+              Expanded(
+                child: ActionButtons(
+                  enabled: selectedLineup != null,
+                  onActionTap: (spec) => _handleActionTap(
+                    context: context,
+                    ref: ref,
+                    spec: spec,
+                    selectedPlayerId: selectedLineup?.playerId,
+                    selectedPlayerFullName: selectedLineup?.fullName,
+                    selectedJerseyNumber: selectedLineup?.jerseyNumber,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -187,6 +192,8 @@ class _InputModeTab extends ConsumerWidget {
     required WidgetRef ref,
     required ActionButtonSpec spec,
     required String? selectedPlayerId,
+    required String? selectedPlayerFullName,
+    required int? selectedJerseyNumber,
   }) async {
     if (selectedPlayerId == null) return;
 
@@ -198,14 +205,19 @@ class _InputModeTab extends ConsumerWidget {
 
     // Free throw / aksi non-shot — langsung catat tanpa court overlay.
     final recordContext = await _readRecordContext(ref);
-    if (recordContext == null) return;
     if (!context.mounted) return;
+    if (recordContext == null) {
+      _showRecordContextUnavailable(context);
+      return;
+    }
 
     _recordSelfAction(
       context: context,
       ref: ref,
       actionType: spec.actionType,
       playerId: selectedPlayerId,
+      playerFullName: selectedPlayerFullName,
+      jerseyNumber: selectedJerseyNumber,
       recordContext: recordContext,
     );
   }
@@ -222,14 +234,19 @@ class _InputModeTab extends ConsumerWidget {
     if (selectedLineup == null) return;
 
     final recordContext = await _readRecordContext(ref);
-    if (recordContext == null) return;
     if (!context.mounted) return;
+    if (recordContext == null) {
+      _showRecordContextUnavailable(context);
+      return;
+    }
 
     final recorded = await _recordSelfAction(
       context: context,
       ref: ref,
       actionType: actionType,
       playerId: selectedLineup.playerId,
+      playerFullName: selectedLineup.fullName,
+      jerseyNumber: selectedLineup.jerseyNumber,
       recordContext: recordContext,
       zone: result.zone,
       shotX: result.x,
@@ -256,6 +273,9 @@ class _InputModeTab extends ConsumerWidget {
       ref: ref,
       actionType: 'ASSIST',
       playerId: assistPlayerId,
+      playerFullName: _findByPlayerId(onCourtLineups, assistPlayerId)?.fullName,
+      jerseyNumber:
+          _findByPlayerId(onCourtLineups, assistPlayerId)?.jerseyNumber,
       recordContext: recordContext,
     );
   }
@@ -266,6 +286,8 @@ class _InputModeTab extends ConsumerWidget {
     required String actionType,
     required String playerId,
     required _RecordContext recordContext,
+    String? playerFullName,
+    int? jerseyNumber,
     String? zone,
     double? shotX,
     double? shotY,
@@ -279,6 +301,8 @@ class _InputModeTab extends ConsumerWidget {
             quarter: recordContext.quarter,
             timeRemaining: recordContext.timeRemaining,
             createdBy: recordContext.createdBy,
+            playerFullName: playerFullName,
+            jerseyNumber: jerseyNumber,
             zone: zone,
             shotX: shotX,
             shotY: shotY,
@@ -297,6 +321,22 @@ class _InputModeTab extends ConsumerWidget {
         );
       }
       return false;
+    } on FirebaseException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mencatat event: ${e.message ?? e.code}'),
+          ),
+        );
+      }
+      return false;
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mencatat event: $e')),
+        );
+      }
+      return false;
     }
   }
 
@@ -311,6 +351,17 @@ class _InputModeTab extends ConsumerWidget {
       quarter: timerState.quarter,
       timeRemaining: currentRemainingSeconds(timerState),
       createdBy: userId,
+    );
+  }
+
+  void _showRecordContextUnavailable(BuildContext context) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Data pertandingan belum siap. Cek state pertandingan dan timer.',
+        ),
+      ),
     );
   }
 
@@ -452,6 +503,14 @@ LineupModel? _findById(List<LineupModel> list, String? id) {
   if (id == null) return null;
   for (final item in list) {
     if (item.id == id) return item;
+  }
+  return null;
+}
+
+LineupModel? _findByPlayerId(List<LineupModel> list, String? playerId) {
+  if (playerId == null) return null;
+  for (final item in list) {
+    if (item.playerId == playerId) return item;
   }
   return null;
 }

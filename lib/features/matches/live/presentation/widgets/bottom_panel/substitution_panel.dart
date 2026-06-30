@@ -10,7 +10,6 @@ import 'package:budiutama_basketball/features/matches/live/domain/providers/live
 import 'package:budiutama_basketball/features/players/data/models/player_model.dart';
 import 'package:budiutama_basketball/features/players/domain/providers/players_provider.dart';
 
-import 'package:budiutama_basketball/core/utils/timer_calculator.dart';
 import 'package:budiutama_basketball/features/matches/live/data/models/timer_state_model.dart';
 
 /// Bottom Panel — proses substitusi pemain dua langkah (SRS FR-LMS-07):
@@ -165,6 +164,10 @@ class _SubstitutionPanelState extends ConsumerState<SubstitutionPanel> {
     final inId = _selectedInId;
     if (outId == null || inId == null) return;
 
+    // Simpan messenger sebelum async gap (showDialog) agar BuildContext
+    // tidak diakses lintas await (use_build_context_synchronously — M2).
+    final messenger = ScaffoldMessenger.of(context);
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) {
@@ -234,16 +237,14 @@ class _SubstitutionPanelState extends ConsumerState<SubstitutionPanel> {
               createdBy: userId,
             );
       } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Data pemain tidak ditemukan.')),
-          );
-        }
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Data pemain tidak ditemukan.')),
+        );
         return;
       }
 
-      if (!success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      if (!success) {
+        messenger.showSnackBar(
           const SnackBar(content: Text('Substitusi gagal. Coba lagi.')),
         );
         return;
@@ -257,20 +258,19 @@ class _SubstitutionPanelState extends ConsumerState<SubstitutionPanel> {
         });
       }
     } on AppException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
-      }
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Derive statsDocId dari player ID penuh, sama dengan
-  // derivePlayerStatsDocId() di match_action_provider.dart
+  // Ambil dua bagian pertama dari player ID: '{jersey}_{inisial}_{teamId}'
+  // → '{jersey}_{inisial}'. Sama dengan derivePlayerStatsDocId() di
+  // match_action_provider.dart. Tidak boleh pakai split('_putra') karena
+  // tim bisa punya suffix lain (contoh: _smaputra2526 → patah di 'putra').
   String _deriveStatsDocId(String fullPlayerId) {
-    return fullPlayerId.split('_putra').first.split('_putri').first;
+    final parts = fullPlayerId.split('_');
+    return parts.length >= 2 ? '${parts[0]}_${parts[1]}' : fullPlayerId;
   }
 
   LineupModel? _findLineupById(List<LineupModel> list, String id) {

@@ -9,10 +9,19 @@ import 'package:budiutama_basketball/features/matches/live/data/repositories/mat
 /// Action types yang valid untuk tim sendiri (PRD Section 7.2,
 /// SDD Section 3.2 — subcollection events).
 const kSelfActionTypes = {
-  '1PT_MADE', '2PT_MADE', '3PT_MADE',
-  'MISS_1PT', 'MISS_2PT', 'MISS_3PT',
-  'ASSIST', 'REBOUND_OFF', 'REBOUND_DEF',
-  'STEAL', 'TURNOVER', 'BLOCK', 'FOUL',
+  '1PT_MADE',
+  '2PT_MADE',
+  '3PT_MADE',
+  'MISS_1PT',
+  'MISS_2PT',
+  'MISS_3PT',
+  'ASSIST',
+  'REBOUND_OFF',
+  'REBOUND_DEF',
+  'STEAL',
+  'TURNOVER',
+  'BLOCK',
+  'FOUL',
 };
 
 /// Action types yang valid untuk tim lawan — TIDAK ada pencatatan
@@ -36,6 +45,8 @@ class MatchActionNotifier extends FamilyNotifier<void, String> {
   String get matchId => arg;
   FirebaseFirestore get _db => FirebaseFirestore.instance;
   MatchEventRepository get _eventRepo => MatchEventRepository(firestore: _db);
+
+  bool _isProcessing = false;
 
   @override
   void build(String arg) {
@@ -67,6 +78,8 @@ class MatchActionNotifier extends FamilyNotifier<void, String> {
     required int quarter,
     required double timeRemaining,
     required String createdBy,
+    String? playerFullName,
+    int? jerseyNumber,
     String? zone,
     double? shotX,
     double? shotY,
@@ -74,10 +87,16 @@ class MatchActionNotifier extends FamilyNotifier<void, String> {
     bool isOpponent = false,
     bool forceConfirmed = false,
   }) async {
+    if (_isProcessing) {
+      throw const MatchStateException(
+        'Aksi sebelumnya masih diproses. Tunggu sebentar lalu coba lagi.',
+      );
+    }
+    _isProcessing = true;
+    try {
     MatchEventRepository.assertMatchIsActive(currentMatchState);
 
-    final allowedTypes =
-        isOpponent ? kOpponentActionTypes : kSelfActionTypes;
+    final allowedTypes = isOpponent ? kOpponentActionTypes : kSelfActionTypes;
     if (!allowedTypes.contains(actionType)) {
       throw MatchStateException(
         'Action type "$actionType" tidak valid untuk '
@@ -127,14 +146,19 @@ class MatchActionNotifier extends FamilyNotifier<void, String> {
     if (!isOpponent) {
       final statsDocId = derivePlayerStatsDocId(playerId);
       final increments = buildStatsIncrement(actionType, zone);
-      batch.update(
+      final statsDelta = expandDottedFieldPaths(increments);
+      batch.set(
         _db
             .collection(FirestorePaths.matchPlayerStats(matchId))
             .doc(statsDocId),
         {
-          ...increments,
+          'player_id': playerId,
+          if (playerFullName != null) 'full_name': playerFullName,
+          if (jerseyNumber != null) 'jersey_number': jerseyNumber,
+          ...statsDelta,
           'updated_at': FieldValue.serverTimestamp(),
         },
+        SetOptions(merge: true),
       );
     }
 
@@ -151,6 +175,9 @@ class MatchActionNotifier extends FamilyNotifier<void, String> {
     }
 
     await batch.commit();
+    } finally {
+      _isProcessing = false;
+    }
   }
 
   // ── UNDO LAST ACTION ──────────────────────────────────────────────────
@@ -160,6 +187,13 @@ class MatchActionNotifier extends FamilyNotifier<void, String> {
   /// Mengembalikan `true` jika ada event yang berhasil di-undo, `false`
   /// jika tidak ada event yang bisa di-undo (misal log masih kosong).
   Future<bool> undoLastAction({required String createdBy}) async {
+    if (_isProcessing) {
+      throw const MatchStateException(
+        'Aksi sebelumnya masih diproses. Tunggu sebentar lalu coba lagi.',
+      );
+    }
+    _isProcessing = true;
+    try {
     final eventToUndo = await _eventRepo.getLastUndoableEvent(matchId);
     if (eventToUndo == null) return false;
 
@@ -175,9 +209,7 @@ class MatchActionNotifier extends FamilyNotifier<void, String> {
     // 1. Tandai event asli sebagai undone — SATU-SATUNYA field yang
     //    boleh diubah pada event immutable (Security Rules SDD 4).
     batch.update(
-      _db
-          .collection(FirestorePaths.matchEvents(matchId))
-          .doc(eventToUndo.id),
+      _db.collection(FirestorePaths.matchEvents(matchId)).doc(eventToUndo.id),
       {'is_undone': true},
     );
 
@@ -208,14 +240,17 @@ class MatchActionNotifier extends FamilyNotifier<void, String> {
       final statsDocId = derivePlayerStatsDocId(eventToUndo.playerId!);
       final decrements =
           buildStatsDecrement(eventToUndo.actionType, eventToUndo.zone);
-      batch.update(
+      final statsDelta = expandDottedFieldPaths(decrements);
+      batch.set(
         _db
             .collection(FirestorePaths.matchPlayerStats(matchId))
             .doc(statsDocId),
         {
-          ...decrements,
+          'player_id': eventToUndo.playerId,
+          ...statsDelta,
           'updated_at': FieldValue.serverTimestamp(),
         },
+        SetOptions(merge: true),
       );
     }
 
@@ -234,6 +269,9 @@ class MatchActionNotifier extends FamilyNotifier<void, String> {
 
     await batch.commit();
     return true;
+    } finally {
+      _isProcessing = false;
+    }
   }
 
   // ── HELPERS ───────────────────────────────────────────────────────────
@@ -270,7 +308,9 @@ final matchActionProvider =
 /// dipakai ulang oleh repository lain (mis. PlayerStatsRepository,
 /// LineupRepository di Step 16) tanpa duplikasi logika string-splitting.
 String derivePlayerStatsDocId(String fullPlayerId) {
-  return fullPlayerId.split('_putra').first.split('_putri').first;
+  final parts = fullPlayerId.split('_');
+  if (parts.length >= 2) return '${parts[0]}_${parts[1]}';
+  return fullPlayerId;
 }
 
 // ── STATS INCREMENT / DECREMENT BUILDERS ──────────────────────────────────
@@ -293,6 +333,41 @@ Map<String, dynamic> buildStatsIncrement(String actionType, String? zone) {
 /// Bangun map decrement (kebalikan persis) untuk undo.
 Map<String, dynamic> buildStatsDecrement(String actionType, String? zone) {
   return _buildStatsDelta(actionType, zone, sign: -1);
+}
+
+/// Mengubah field path bertitik dari format `update()` menjadi nested map
+/// yang aman dipakai bersama `set(..., SetOptions(merge: true))`.
+///
+/// Contoh:
+/// `{'shot_zones.PAINT.made': FieldValue.increment(1)}`
+/// menjadi:
+/// `{'shot_zones': {'PAINT': {'made': FieldValue.increment(1)}}}`.
+Map<String, dynamic> expandDottedFieldPaths(Map<String, dynamic> data) {
+  final expanded = <String, dynamic>{};
+
+  for (final entry in data.entries) {
+    final parts = entry.key.split('.');
+    if (parts.length == 1) {
+      expanded[entry.key] = entry.value;
+      continue;
+    }
+
+    var cursor = expanded;
+    for (var i = 0; i < parts.length - 1; i++) {
+      final key = parts[i];
+      final next = cursor[key];
+      if (next is Map<String, dynamic>) {
+        cursor = next;
+      } else {
+        final created = <String, dynamic>{};
+        cursor[key] = created;
+        cursor = created;
+      }
+    }
+    cursor[parts.last] = entry.value;
+  }
+
+  return expanded;
 }
 
 Map<String, dynamic> _buildStatsDelta(

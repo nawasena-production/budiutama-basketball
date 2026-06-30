@@ -121,24 +121,100 @@ class ActionButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 1.3,
-      ),
-      itemCount: kPlayerActionButtons.length,
-      itemBuilder: (context, i) {
-        final spec = kPlayerActionButtons[i];
-        return _ActionButton(
-          spec: spec,
-          enabled: enabled,
-          onTap: () => onActionTap(spec),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final metrics = _ActionGridMetrics.fromConstraints(
+          constraints,
+          itemCount: kPlayerActionButtons.length,
+        );
+
+        return GridView.builder(
+          padding: EdgeInsets.zero,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: metrics.columns,
+            mainAxisSpacing: metrics.spacing,
+            crossAxisSpacing: metrics.spacing,
+            mainAxisExtent: metrics.tileHeight,
+          ),
+          itemCount: kPlayerActionButtons.length,
+          itemBuilder: (context, i) {
+            final spec = kPlayerActionButtons[i];
+            return _ActionButton(
+              spec: spec,
+              enabled: enabled,
+              metrics: metrics,
+              onTap: () => onActionTap(spec),
+            );
+          },
         );
       },
+    );
+  }
+}
+
+class _ActionGridMetrics {
+  final int columns;
+  final double spacing;
+  final double tileHeight;
+  final double shortFontSize;
+  final double longFontSize;
+  final double horizontalPadding;
+
+  const _ActionGridMetrics({
+    required this.columns,
+    required this.spacing,
+    required this.tileHeight,
+    required this.shortFontSize,
+    required this.longFontSize,
+    required this.horizontalPadding,
+  });
+
+  factory _ActionGridMetrics.fromConstraints(
+    BoxConstraints constraints, {
+    required int itemCount,
+  }) {
+    final width = constraints.maxWidth.isFinite ? constraints.maxWidth : 480.0;
+    final height =
+        constraints.maxHeight.isFinite ? constraints.maxHeight : 240.0;
+    final spacing = width < 420 || height < 190 ? 6.0 : 8.0;
+
+    var columns = 3;
+    var bestFallbackColumns = columns;
+    var bestFallbackTileHeight = 0.0;
+    for (final candidate in [6, 5, 4, 3]) {
+      final rows = (itemCount / candidate).ceil();
+      final tileWidth = (width - spacing * (candidate - 1)) / candidate;
+      final tileHeight = (height - spacing * (rows - 1)) / rows;
+      if (tileWidth >= 48 && tileHeight > bestFallbackTileHeight) {
+        bestFallbackColumns = candidate;
+        bestFallbackTileHeight = tileHeight;
+      }
+      if (tileWidth >= 64 && tileHeight >= 48) {
+        columns = candidate;
+        break;
+      }
+    }
+    if (bestFallbackTileHeight > 0) {
+      final rows = (itemCount / columns).ceil();
+      final selectedTileHeight = (height - spacing * (rows - 1)) / rows;
+      if (selectedTileHeight < 48) columns = bestFallbackColumns;
+    }
+
+    final rows = (itemCount / columns).ceil();
+    final tileHeight =
+        ((height - spacing * (rows - 1)) / rows).clamp(40.0, 96.0);
+    final shortFontSize = (tileHeight * 0.28).clamp(12.0, 18.0);
+    final longFontSize = (tileHeight * 0.16).clamp(8.0, 10.0);
+    final horizontalPadding = (width / columns * 0.06).clamp(3.0, 8.0);
+
+    return _ActionGridMetrics(
+      columns: columns,
+      spacing: spacing,
+      tileHeight: tileHeight,
+      shortFontSize: shortFontSize,
+      longFontSize: longFontSize,
+      horizontalPadding: horizontalPadding,
     );
   }
 }
@@ -146,11 +222,13 @@ class ActionButtons extends StatelessWidget {
 class _ActionButton extends StatelessWidget {
   final ActionButtonSpec spec;
   final bool enabled;
+  final _ActionGridMetrics metrics;
   final VoidCallback onTap;
 
   const _ActionButton({
     required this.spec,
     required this.enabled,
+    required this.metrics,
     required this.onTap,
   });
 
@@ -173,7 +251,7 @@ class _ActionButton extends StatelessWidget {
             ),
           ),
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
+          padding: EdgeInsets.symmetric(horizontal: metrics.horizontalPadding),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -181,17 +259,22 @@ class _ActionButton extends StatelessWidget {
                 spec.shortLabel,
                 style: TextStyle(
                   color: enabled ? fg : fg.withValues(alpha: 0.45),
-                  fontSize: 16,
+                  fontSize: metrics.shortFontSize,
                   fontWeight: FontWeight.bold,
+                  height: 1,
                 ),
               ),
+              SizedBox(height: metrics.tileHeight < 54 ? 1 : 3),
               Text(
                 spec.longLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: enabled
                       ? fg.withValues(alpha: 0.85)
                       : fg.withValues(alpha: 0.35),
-                  fontSize: 9,
+                  fontSize: metrics.longFontSize,
+                  height: 1,
                 ),
               ),
             ],

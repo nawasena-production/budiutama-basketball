@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:budiutama_basketball/core/utils/stats_calculator.dart';
+import 'package:budiutama_basketball/features/matches/live/data/models/lineup_model.dart';
 import 'package:budiutama_basketball/features/matches/live/data/models/player_stats_model.dart';
+import 'package:budiutama_basketball/features/matches/live/domain/providers/lineup_provider.dart';
 import 'package:budiutama_basketball/features/matches/live/domain/providers/live_match_stream_providers.dart';
 
 /// Tab 2 Center Panel — tabel statistik real-time seluruh pemain yang
@@ -19,6 +21,10 @@ class LivePlayerStatsTable extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final statsAsync = ref.watch(livePlayerStatsStreamProvider(matchId));
+    final lineups = ref.watch(allLineupStreamProvider(matchId)).valueOrNull;
+    final timerState = ref.watch(timerStateStreamProvider(matchId)).valueOrNull;
+    final currentRemaining =
+        timerState == null ? null : currentRemainingSeconds(timerState);
 
     return statsAsync.when(
       loading: () => const Center(
@@ -40,9 +46,13 @@ class LivePlayerStatsTable extends ConsumerWidget {
           );
         }
 
-        // Urutkan berdasarkan poin terbanyak — paling relevan untuk
-        // dipantau Coach/Manager selama pertandingan berlangsung.
-        final sorted = [...stats]..sort((a, b) => b.points.compareTo(a.points));
+        final mergedStats = _mergeStatsByPlayer(stats);
+        final sorted = [...mergedStats]
+          ..sort((a, b) {
+            final efCompare = _efficiencyFor(b).compareTo(_efficiencyFor(a));
+            if (efCompare != 0) return efCompare;
+            return b.points.compareTo(a.points);
+          });
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(8),
@@ -65,7 +75,9 @@ class LivePlayerStatsTable extends ConsumerWidget {
               columns: const [
                 DataColumn(label: Text('#')),
                 DataColumn(label: Text('Nama')),
+                DataColumn(label: Text('MIN'), numeric: true),
                 DataColumn(label: Text('PTS'), numeric: true),
+                DataColumn(label: Text('EF'), numeric: true),
                 DataColumn(label: Text('FT%'), numeric: true),
                 DataColumn(label: Text('FG2%'), numeric: true),
                 DataColumn(label: Text('FG3%'), numeric: true),
@@ -78,7 +90,18 @@ class LivePlayerStatsTable extends ConsumerWidget {
                 DataColumn(label: Text('BLK'), numeric: true),
                 DataColumn(label: Text('FOUL'), numeric: true),
               ],
-              rows: sorted.map((s) => _buildRow(s)).toList(),
+              rows: sorted
+                  .map(
+                    (s) => _buildRow(
+                      s,
+                      displaySeconds: _displaySecondsFor(
+                        s,
+                        lineups,
+                        currentRemaining,
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
           ),
         );
@@ -86,7 +109,71 @@ class LivePlayerStatsTable extends ConsumerWidget {
     );
   }
 
-  DataRow _buildRow(PlayerStatsModel s) {
+  List<PlayerStatsModel> _mergeStatsByPlayer(List<PlayerStatsModel> stats) {
+    final byPlayerId = <String, PlayerStatsModel>{};
+
+    for (final item in stats) {
+      final existing = byPlayerId[item.playerId];
+      if (existing == null) {
+        byPlayerId[item.playerId] = item;
+        continue;
+      }
+
+      byPlayerId[item.playerId] = existing.copyWith(
+        id: existing.id,
+        fullName:
+            existing.fullName.isNotEmpty ? existing.fullName : item.fullName,
+        jerseyNumber: existing.jerseyNumber != 0
+            ? existing.jerseyNumber
+            : item.jerseyNumber,
+        points: existing.points + item.points,
+        ftMade: existing.ftMade + item.ftMade,
+        ftAttempted: existing.ftAttempted + item.ftAttempted,
+        fg2Made: existing.fg2Made + item.fg2Made,
+        fg2Attempted: existing.fg2Attempted + item.fg2Attempted,
+        fg3Made: existing.fg3Made + item.fg3Made,
+        fg3Attempted: existing.fg3Attempted + item.fg3Attempted,
+        assists: existing.assists + item.assists,
+        offensiveRebounds:
+            existing.offensiveRebounds + item.offensiveRebounds,
+        defensiveRebounds:
+            existing.defensiveRebounds + item.defensiveRebounds,
+        steals: existing.steals + item.steals,
+        turnovers: existing.turnovers + item.turnovers,
+        blocks: existing.blocks + item.blocks,
+        fouls: existing.fouls + item.fouls,
+        totalSecondsPlayed:
+            existing.totalSecondsPlayed + item.totalSecondsPlayed,
+      );
+    }
+
+    return byPlayerId.values.toList();
+  }
+
+  int _displaySecondsFor(
+    PlayerStatsModel stats,
+    List<LineupModel>? lineups,
+    double? currentRemaining,
+  ) {
+    if (lineups == null || currentRemaining == null) {
+      return stats.totalSecondsPlayed;
+    }
+
+    for (final lineup in lineups) {
+      if (lineup.id != stats.id && lineup.playerId != stats.playerId) continue;
+      final enteredAt = lineup.enteredAtClock;
+      if (!lineup.isOnCourt || enteredAt == null) {
+        return lineup.totalSecondsPlayed;
+      }
+      final currentStint =
+          (enteredAt - currentRemaining).clamp(0.0, double.infinity).round();
+      return lineup.totalSecondsPlayed + currentStint;
+    }
+
+    return stats.totalSecondsPlayed;
+  }
+
+  DataRow _buildRow(PlayerStatsModel s, {required int displaySeconds}) {
     final ftPct = StatsCalculator.ftPercentage(s.ftMade, s.ftAttempted);
     final fg2Pct = StatsCalculator.fg2Percentage(s.fg2Made, s.fg2Attempted);
     final fg3Pct = StatsCalculator.fg3Percentage(s.fg3Made, s.fg3Attempted);
@@ -96,16 +183,29 @@ class LivePlayerStatsTable extends ConsumerWidget {
       s.fg3Made,
       s.fg3Attempted,
     );
+    final efficiency = _efficiencyFor(s);
 
     return DataRow(
       cells: [
         DataCell(Text('${s.jerseyNumber}')),
         DataCell(Text(s.fullName)),
+        DataCell(Text(StatsCalculator.formatMinutes(displaySeconds))),
         DataCell(
           Text(
             '${s.points}',
             style: const TextStyle(
               color: Color(0xFFE8420A),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        DataCell(
+          Text(
+            '$efficiency',
+            style: TextStyle(
+              color: efficiency >= 0
+                  ? const Color(0xFF86EFAC)
+                  : const Color(0xFFFCA5A5),
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -131,6 +231,24 @@ class LivePlayerStatsTable extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  int _efficiencyFor(PlayerStatsModel s) {
+    return StatsCalculator.efficiency(
+      points: s.points,
+      offensiveRebounds: s.offensiveRebounds,
+      defensiveRebounds: s.defensiveRebounds,
+      assists: s.assists,
+      steals: s.steals,
+      blocks: s.blocks,
+      fg2Made: s.fg2Made,
+      fg2Attempted: s.fg2Attempted,
+      fg3Made: s.fg3Made,
+      fg3Attempted: s.fg3Attempted,
+      ftMade: s.ftMade,
+      ftAttempted: s.ftAttempted,
+      turnovers: s.turnovers,
     );
   }
 

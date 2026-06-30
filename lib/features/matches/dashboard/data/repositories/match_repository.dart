@@ -114,27 +114,166 @@ class MatchRepository {
     });
   }
 
+  /// Transisi state dari Match Mode yang ikut menjaga timer dan minutes
+  /// played. Dipakai untuk tombol akhir/start quarter di header live match.
+  ///
+  /// Validasi + update `current_state` DAN reset timer dilakukan dalam satu
+  /// transaction atomik, mencegah window di mana state sudah berubah tapi
+  /// timer masih menunjukkan quarter lama jika batch terpisah gagal (H2).
+  /// Lineup `total_seconds_played` tetap di batch terpisah — non-kritis
+  /// karena dihitung ulang oleh Cloud Function onMatchFinished.
+  Future<void> transitionLiveState({
+    required String matchId,
+    required String nextState,
+    required double currentTimeRemaining,
+    required double quarterDurationSeconds,
+    required double otDurationSeconds,
+  }) async {
+    final matchRef = _db.collection(FirestorePaths.matches).doc(matchId);
+    final timerRef =
+        _db.collection(FirestorePaths.matchTimerState(matchId)).doc('state');
+    late String currentState;
+
+    await _db.runTransaction((tx) async {
+      final matchSnap = await tx.get(matchRef);
+      if (!matchSnap.exists) {
+        throw const FirestoreException('Pertandingan tidak ditemukan.');
+      }
+      final matchData = matchSnap.data() ?? {};
+      currentState = matchData['current_state'] as String? ?? 'PRE_MATCH';
+      if (!isValidTransition(currentState, nextState)) {
+        throw MatchStateException(
+          'Transisi state tidak valid: $currentState → $nextState.',
+        );
+      }
+      tx.update(matchRef, {
+        'current_state': nextState,
+        if (nextState == 'Q1_ACTIVE') 'status': 'ongoing',
+        if (nextState == 'POST_MATCH') 'status': 'finished',
+        if (nextState == 'POST_MATCH')
+          'finished_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+
+      // Timer reset di dalam transaction — atomik dengan state change (H2).
+      final openingQ = _quarterForActiveState(nextState);
+      if (openingQ != null) {
+        final fullDuration = nextState == 'OT_ACTIVE'
+            ? otDurationSeconds
+            : quarterDurationSeconds;
+        tx.set(timerRef, {
+          'is_running': false,
+          'seconds_at_start': fullDuration,
+          'started_at': null,
+          'quarter': openingQ,
+        });
+      } else if (isActiveState(currentState)) {
+        tx.set(timerRef, {
+          'is_running': false,
+          'seconds_at_start': currentTimeRemaining,
+          'started_at': null,
+          'quarter': _quarterForActiveState(currentState) ?? 1,
+        });
+      }
+    });
+
+    // Batch non-kritis: update waktu bermain pemain (total_seconds_played).
+    // Jika batch gagal, nilai ini dihitung ulang oleh onMatchFinished Cloud
+    // Function. Timer sudah aman di-reset di atas dalam satu transaction.
+    try {
+      final batch = _db.batch();
+
+      if (isActiveState(currentState)) {
+        final lineupsSnap = await _db
+            .collection(FirestorePaths.matchLineups(matchId))
+            .where('is_on_court', isEqualTo: true)
+            .get();
+
+        for (final doc in lineupsSnap.docs) {
+          final data = doc.data();
+          final enteredAtClock =
+              (data['entered_at_clock'] as num?)?.toDouble() ??
+                  currentTimeRemaining;
+          final secondsPlayed = (enteredAtClock - currentTimeRemaining)
+              .clamp(0.0, double.infinity)
+              .round();
+
+          batch.update(doc.reference, {
+            'entered_at_clock': null,
+            'entered_at_quarter': null,
+            'total_seconds_played': FieldValue.increment(secondsPlayed),
+            'updated_at': FieldValue.serverTimestamp(),
+          });
+
+          batch.set(
+            _db
+                .collection(FirestorePaths.matchPlayerStats(matchId))
+                .doc(doc.id),
+            {
+              'player_id': data['player_id'],
+              'full_name': data['full_name'],
+              'jersey_number': data['jersey_number'],
+              'total_seconds_played': FieldValue.increment(secondsPlayed),
+              'updated_at': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true),
+          );
+        }
+      }
+
+      final openingQuarter = _quarterForActiveState(nextState);
+      if (openingQuarter != null) {
+        final fullDurationSeconds = nextState == 'OT_ACTIVE'
+            ? otDurationSeconds
+            : quarterDurationSeconds;
+        final onCourtSnap = await _db
+            .collection(FirestorePaths.matchLineups(matchId))
+            .where('is_on_court', isEqualTo: true)
+            .get();
+
+        for (final doc in onCourtSnap.docs) {
+          batch.update(doc.reference, {
+            'entered_at_clock': fullDurationSeconds,
+            'entered_at_quarter': openingQuarter,
+            'updated_at': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      await batch.commit();
+    } catch (_) {
+      // Waktu bermain tidak kritis untuk gameplay — diabaikan.
+    }
+  }
+
   /// Perbarui konfigurasi timer sebelum pertandingan dimulai.
   /// Hanya bisa dilakukan saat timer_config_locked == false.
+  ///
+  /// Baca + cek + tulis dilakukan dalam satu transaction untuk mencegah
+  /// race condition dengan startMatch() yang mengunci konfigurasi (H3).
   Future<void> updateTimerConfig(
     String matchId, {
     required int quarterDurationMinutes,
     required int numPeriods,
     required int otDurationMinutes,
   }) async {
-    // Cek apakah config sudah dikunci
-    final match = await getById(matchId);
-    if (match == null) {
-      throw const FirestoreException('Pertandingan tidak ditemukan.');
-    }
-    if (match.timerConfigLocked) {
-      throw const FirestoreException(
-          'Konfigurasi timer sudah dikunci. Pertandingan sudah dimulai.');
-    }
-    await update(matchId, {
-      'quarter_duration_minutes': quarterDurationMinutes,
-      'num_periods': numPeriods,
-      'ot_duration_minutes': otDurationMinutes,
+    final matchRef = _db.collection(FirestorePaths.matches).doc(matchId);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(matchRef);
+      if (!snap.exists) {
+        throw const FirestoreException('Pertandingan tidak ditemukan.');
+      }
+      final locked = snap.data()?['timer_config_locked'] as bool? ?? false;
+      if (locked) {
+        throw const FirestoreException(
+            'Konfigurasi timer sudah dikunci. Pertandingan sudah dimulai.');
+      }
+      tx.update(matchRef, {
+        'quarter_duration_minutes': quarterDurationMinutes,
+        'num_periods': numPeriods,
+        'ot_duration_minutes': otDurationMinutes,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
     });
   }
 
@@ -240,8 +379,68 @@ class MatchRepository {
     await batch.commit();
   }
 
+  /// Memulai quarter pertama: transisi PRE_MATCH → Q1_ACTIVE dan
+  /// mulai timer dalam SATU Firestore transaction atomik.
+  ///
+  /// Menggantikan dua write terpisah (transitionState + timerControlProvider
+  /// .start) yang sebelumnya bisa mengakibatkan partial-commit jika
+  /// koneksi terputus di antara keduanya (M7).
+  Future<void> startFirstQuarter({
+    required String matchId,
+    required double fullDurationSeconds,
+  }) async {
+    final matchRef = _db.collection(FirestorePaths.matches).doc(matchId);
+    final timerRef =
+        _db.collection(FirestorePaths.matchTimerState(matchId)).doc('state');
+
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(matchRef);
+      if (!snap.exists) {
+        throw const FirestoreException('Pertandingan tidak ditemukan.');
+      }
+      final currentState =
+          snap.data()?['current_state'] as String? ?? 'PRE_MATCH';
+      if (!isValidTransition(currentState, 'Q1_ACTIVE')) {
+        throw MatchStateException(
+          'Transisi state tidak valid: $currentState → Q1_ACTIVE.',
+        );
+      }
+      // Baca timerRef dalam transaction agar Firestore mengunci doc timer
+      // selama transaction berlangsung (optimistic locking — M6).
+      await tx.get(timerRef);
+      tx.update(matchRef, {
+        'current_state': 'Q1_ACTIVE',
+        'status': 'ongoing',
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+      tx.set(timerRef, {
+        'is_running': true,
+        'seconds_at_start': fullDurationSeconds,
+        'started_at': FieldValue.serverTimestamp(),
+        'quarter': 1,
+      });
+    });
+  }
+
   Future<void> cancelMatch(String matchId) async {
-    await update(matchId, {'status': 'cancelled'});
+    final matchRef = _db.collection(FirestorePaths.matches).doc(matchId);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(matchRef);
+      if (!snap.exists) {
+        throw const FirestoreException('Pertandingan tidak ditemukan.');
+      }
+      final status = snap.data()?['status'] as String? ?? '';
+      if (status == 'finished') {
+        throw const MatchStateException(
+          'Pertandingan yang sudah selesai tidak dapat dibatalkan.',
+        );
+      }
+      if (status == 'cancelled') return;
+      tx.update(matchRef, {
+        'status': 'cancelled',
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+    });
   }
 
   // ── HELPERS ────────────────────────────────────────────────────────────
@@ -279,5 +478,22 @@ class MatchRepository {
       return '${parts[0]}_${parts[1]}';
     }
     return playerId;
+  }
+
+  int? _quarterForActiveState(String state) {
+    switch (state) {
+      case 'Q1_ACTIVE':
+        return 1;
+      case 'Q2_ACTIVE':
+        return 2;
+      case 'Q3_ACTIVE':
+        return 3;
+      case 'Q4_ACTIVE':
+        return 4;
+      case 'OT_ACTIVE':
+        return 5;
+      default:
+        return null;
+    }
   }
 }

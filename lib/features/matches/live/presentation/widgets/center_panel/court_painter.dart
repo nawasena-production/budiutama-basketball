@@ -62,10 +62,46 @@ void drawHalfCourtLines(Canvas canvas, Size size) {
   canvas.translate(courtRect.left, courtRect.top);
 
   final boundaryPaint = Paint()
-    ..color = const Color(0xFF334155)
+    ..color = const Color(0xFFCBD5E1)
     ..strokeWidth = 1.5
     ..style = PaintingStyle.stroke;
+  final mainLinePaint = Paint()
+    ..color = const Color(0xFFCBD5E1)
+    ..strokeWidth = 1.35
+    ..style = PaintingStyle.stroke;
+  final secondaryLinePaint = Paint()
+    ..color = const Color(0xFF94A3B8)
+    ..strokeWidth = 1
+    ..style = PaintingStyle.stroke;
+  final paintFill = Paint()
+    ..color = const Color(0xFF1E3A5F).withValues(alpha: 0.32)
+    ..style = PaintingStyle.fill;
+
+  canvas.drawRect(
+    Rect.fromLTWH(0, 0, w, h),
+    Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+      ).createShader(Rect.fromLTWH(0, 0, w, h)),
+  );
   canvas.drawRect(Rect.fromLTWH(0, 0, w, h), boundaryPaint);
+
+  // Half-court line detail: bagian bawah rect adalah garis tengah
+  // lapangan, dengan setengah lingkaran center circle yang terlihat
+  // masuk ke area half-court.
+  canvas.drawArc(
+    Rect.fromCenter(
+      center: Offset(w * 0.5, h),
+      width: w * 0.24,
+      height: w * 0.24,
+    ),
+    pi,
+    pi,
+    false,
+    secondaryLinePaint,
+  );
 
   // Area cat (paint) — sesuai paintXMin/paintXMax/paintYMax dari
   // zone_classifier.dart (0.35–0.65 horizontal, 0–0.30 vertikal).
@@ -75,65 +111,65 @@ void drawHalfCourtLines(Canvas canvas, Size size) {
     w * (paintXMax - paintXMin),
     h * paintYMax,
   );
-  canvas.drawRect(
-    paintRect,
-    Paint()..color = const Color(0xFF1E3A5F).withValues(alpha: 0.5),
-  );
-  canvas.drawRect(
-    paintRect,
-    Paint()
-      ..color = const Color(0xFF2563EB)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1,
-  );
+  canvas.drawRect(paintRect, paintFill);
+  canvas.drawRect(paintRect, mainLinePaint);
 
   // Free throw circle — di tengah garis bawah area cat.
-  canvas.drawOval(
-    Rect.fromCenter(
-      center: Offset(w * 0.5, h * paintYMax),
-      width: w * 0.20,
-      height: h * 0.12,
-    ),
-    Paint()
-      ..color = const Color(0xFF2563EB)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1,
+  final freeThrowCircle = Rect.fromCircle(
+    center: Offset(w * 0.5, h * paintYMax),
+    radius: w * 0.12,
   );
+  canvas.drawArc(freeThrowCircle, 0, pi, false, mainLinePaint);
+  canvas.drawArc(freeThrowCircle, pi, pi, false, secondaryLinePaint);
 
-  // Arc 3PT — radius konstan threePtRadius dari ring (sama persis
-  // dengan threshold yang dipakai classifyZone()). Digambar sebagai
-  // lingkaran penuh — bagian di bawah garis baseline secara visual
-  // berada di luar batas lapangan (ditutup garis boundary di atas)
-  // sehingga tetap terbaca jelas sebagai arc 3PT standar.
+  // Restricted area di bawah ring.
   final ringCenter = Offset(w * ringX, h * ringY);
+  canvas.drawArc(
+    Rect.fromCircle(center: ringCenter, radius: w * 0.08),
+    0,
+    pi,
+    false,
+    secondaryLinePaint,
+  );
+
+  // Garis 3PT: straight corner lines paralel sideline, lalu arc besar
+  // menghadap ke half-court. Ini lebih dekat ke lapangan asli daripada
+  // menggambar lingkaran penuh yang terpotong boundary.
   final cornerYPx = h * cornerLineY;
-
-  canvas.drawCircle(
-    ringCenter,
-    w * threePtRadius,
-    Paint()
-      ..color = const Color(0xFF7C3AED)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5,
-  );
-
-  // Garis baseline corner (horizontal, dari pinggir lapangan menuju
-  // titik potong arc) — dihitung dari rumus lingkaran langsung,
-  // konsisten dengan zone_classifier.dart.
+  final cornerLeftX = xAtArcIntersection(cornerLineY, isLeft: true) * w;
+  final cornerRightX = xAtArcIntersection(cornerLineY, isLeft: false) * w;
+  final threePointPaint = Paint()
+    ..color = const Color(0xFFA78BFA)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.5;
+  canvas.save();
+  canvas.clipRect(Rect.fromLTWH(0, 0, w, h));
   canvas.drawLine(
-    Offset(0, cornerYPx),
-    Offset(xAtArcIntersection(cornerLineY, isLeft: true) * w, cornerYPx),
-    Paint()
-      ..color = const Color(0xFF7C3AED)
-      ..strokeWidth = 1.5,
+    Offset(cornerLeftX, 0),
+    Offset(cornerLeftX, cornerYPx),
+    threePointPaint,
   );
   canvas.drawLine(
-    Offset(w, cornerYPx),
-    Offset(xAtArcIntersection(cornerLineY, isLeft: false) * w, cornerYPx),
-    Paint()
-      ..color = const Color(0xFF7C3AED)
-      ..strokeWidth = 1.5,
+    Offset(cornerRightX, 0),
+    Offset(cornerRightX, cornerYPx),
+    threePointPaint,
   );
+
+  final radius = w * threePtRadius;
+  final leftAngle = atan2(
+    cornerYPx - ringCenter.dy,
+    cornerLeftX - ringCenter.dx,
+  );
+  final rightAngle =
+      atan2(cornerYPx - ringCenter.dy, cornerRightX - ringCenter.dx);
+  canvas.drawArc(
+    Rect.fromCircle(center: ringCenter, radius: radius),
+    leftAngle,
+    (2 * pi) + rightAngle - leftAngle,
+    false,
+    threePointPaint,
+  );
+  canvas.restore();
 
   // Ring + backboard
   canvas.drawCircle(
@@ -156,10 +192,9 @@ void drawHalfCourtLines(Canvas canvas, Size size) {
   canvas.restore();
 }
 
-/// Titik potong horizontal antara garis `y = yNorm` dan lingkaran arc
-/// 3PT (radius [threePtRadius] dari ring) — dipakai untuk menggambar
-/// garis baseline corner yang presisi secara matematis, BUKAN
-/// trigonometri sudut yang rawan kesalahan tanda/arah.
+/// Titik potong antara garis `y = yNorm` dan lingkaran arc 3PT
+/// (radius [threePtRadius] dari ring) — dipakai untuk menentukan x
+/// straight corner line sebelum menyambung ke arc.
 ///
 /// Diselesaikan dari persamaan lingkaran:
 /// `(x - ringX)^2 + (yNorm - ringY)^2 = threePtRadius^2`

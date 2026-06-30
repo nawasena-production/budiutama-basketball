@@ -246,7 +246,7 @@ class _AddPhysicalTestSessionBottomSheetState
                         width: 20, height: 20,
                         child: CircularProgressIndicator(
                             strokeWidth: 2, color: Colors.white))
-                    : const Text('Mulai Sesi',
+                    : const Text('Buat Sesi',
                         style: TextStyle(
                             fontSize: 15, fontWeight: FontWeight.w600)),
               ),
@@ -289,7 +289,7 @@ class _AddPhysicalTestSessionBottomSheetState
           .createSession(sessionId: sessionId, session: session);
 
       if (success && mounted) {
-        Navigator.of(context).pop(sessionId);
+        Navigator.of(context).pop(true);
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:budiutama_basketball/core/errors/app_exceptions.dart';
+import 'package:budiutama_basketball/core/utils/timer_calculator.dart';
 import 'package:budiutama_basketball/features/matches/dashboard/domain/providers/match_provider.dart';
+import 'package:budiutama_basketball/features/matches/live/data/models/timer_state_model.dart';
 import 'package:budiutama_basketball/features/matches/live/domain/providers/live_match_stream_providers.dart';
 import 'package:budiutama_basketball/features/matches/live/domain/providers/timer_provider.dart';
 import 'match_timer_widget.dart';
@@ -94,6 +96,7 @@ class MatchHeader extends ConsumerWidget {
                     matchId: matchId,
                     currentState: match.currentState,
                     quarterDurationMinutes: match.quarterDurationMinutes,
+                    otDurationMinutes: match.otDurationMinutes,
                   ),
                 ],
               ),
@@ -213,38 +216,67 @@ class _InfoColumn extends StatelessWidget {
   }
 }
 
-class _MatchClockControls extends ConsumerWidget {
+class _MatchClockControls extends ConsumerStatefulWidget {
   final String matchId;
   final String currentState;
   final int quarterDurationMinutes;
+  final int otDurationMinutes;
 
   const _MatchClockControls({
     required this.matchId,
     required this.currentState,
     required this.quarterDurationMinutes,
+    required this.otDurationMinutes,
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final timerState = ref.watch(timerStateStreamProvider(matchId)).valueOrNull;
-    final timerControlState = ref.watch(timerControlProvider(matchId));
-    final matchActionState = ref.watch(matchActionsProvider);
-    final isBusy = timerControlState.isLoading || matchActionState.isLoading;
+  ConsumerState<_MatchClockControls> createState() =>
+      _MatchClockControlsState();
+}
+
+class _MatchClockControlsState extends ConsumerState<_MatchClockControls> {
+  // Flag lokal per-widget untuk mencegah double-tap. Sengaja TIDAK memakai
+  // matchActionsProvider.isLoading karena provider itu non-family dan
+  // shared — loading dari createMatch/cancelMatch di halaman lain akan
+  // memblokir tombol live match secara keliru (M5).
+  bool _isBusy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final timerState =
+        ref.watch(timerStateStreamProvider(widget.matchId)).valueOrNull;
+    final timerControlState = ref.watch(timerControlProvider(widget.matchId));
+    final isBusy = _isBusy || timerControlState.isLoading;
     final isRunning = timerState?.isRunning ?? false;
     final quarter = timerState?.quarter ?? 1;
 
-    if (currentState == 'PRE_MATCH') {
+    if (widget.currentState == 'PRE_MATCH') {
       return _HeaderControlButton(
         icon: Icons.play_arrow_rounded,
         label: 'START MATCH',
         foreground: const Color(0xFF0F172A),
         background: const Color(0xFFFCD34D),
-        onPressed: isBusy ? null : () => _startMatchClock(context, ref),
+        onPressed: isBusy ? null : () => _startMatchClock(context),
       );
     }
 
-    if (!_isClockControllable(currentState)) {
-      return const SizedBox(height: 30);
+    if (!_isClockControllable(widget.currentState)) {
+      final nextState = _nextStateFor(widget.currentState);
+      if (nextState == null) return const SizedBox(height: 30);
+      return _HeaderControlButton(
+        icon: nextState.endsWith('_ACTIVE')
+            ? Icons.play_arrow_rounded
+            : Icons.skip_next_rounded,
+        label: _nextStateLabel(widget.currentState),
+        foreground: const Color(0xFFE0F2FE),
+        background: const Color(0xFF075985),
+        onPressed: isBusy
+            ? null
+            : () => _confirmAndTransitionPeriod(
+                  context,
+                  timerState: timerState,
+                ),
+      );
     }
 
     return Row(
@@ -258,7 +290,7 @@ class _MatchClockControls extends ConsumerWidget {
           onPressed: isBusy || isRunning
               ? null
               : () => ref
-                  .read(timerControlProvider(matchId).notifier)
+                  .read(timerControlProvider(widget.matchId).notifier)
                   .resume(currentQuarter: quarter),
         ),
         const SizedBox(width: 6),
@@ -269,37 +301,57 @@ class _MatchClockControls extends ConsumerWidget {
           background: const Color(0xFF9A3412),
           onPressed: isBusy || !isRunning
               ? null
-              : () => ref.read(timerControlProvider(matchId).notifier).pause(),
+              : () =>
+                  ref.read(timerControlProvider(widget.matchId).notifier).pause(),
+        ),
+        const SizedBox(width: 6),
+        _HeaderControlButton(
+          icon: Icons.skip_next_rounded,
+          label: _nextStateLabel(widget.currentState),
+          foreground: const Color(0xFFE0F2FE),
+          background: const Color(0xFF075985),
+          onPressed: isBusy
+              ? null
+              : () => _confirmAndTransitionPeriod(
+                    context,
+                    timerState: timerState,
+                  ),
         ),
       ],
     );
   }
 
-  Future<void> _startMatchClock(BuildContext context, WidgetRef ref) async {
+  // M7: state transition + timer start dalam satu transaction atomik via
+  // startFirstQuarter(). Menggantikan dua write terpisah yang sebelumnya
+  // bisa partial-commit jika koneksi terputus di antara keduanya.
+  Future<void> _startMatchClock(BuildContext context) async {
+    if (_isBusy) return;
+    setState(() => _isBusy = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final transitioned =
-          await ref.read(matchActionsProvider.notifier).transitionState(
-                matchId: matchId,
-                nextState: 'Q1_ACTIVE',
+      final success =
+          await ref.read(matchActionsProvider.notifier).startFirstQuarter(
+                matchId: widget.matchId,
+                fullDurationSeconds:
+                    (widget.quarterDurationMinutes * 60).toDouble(),
               );
-      if (!transitioned) {
+      if (!success && mounted) {
         messenger.showSnackBar(
           const SnackBar(content: Text('Gagal memulai pertandingan.')),
         );
-        return;
       }
-
-      await ref.read(timerControlProvider(matchId).notifier).start(
-            fullDurationSeconds: (quarterDurationMinutes * 60).toDouble(),
-            quarter: 1,
-          );
     } on AppException catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text(error.message)));
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(error.message)));
+      }
     } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Gagal memulai pertandingan.')),
-      );
+      if (mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Gagal memulai pertandingan.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
     }
   }
 
@@ -309,6 +361,151 @@ class _MatchClockControls extends ConsumerWidget {
         state == 'Q3_ACTIVE' ||
         state == 'Q4_ACTIVE' ||
         state == 'OT_ACTIVE';
+  }
+
+  String _nextStateLabel(String state) {
+    switch (state) {
+      case 'Q1_ACTIVE':
+        return 'END Q1';
+      case 'Q1_BREAK':
+        return 'START Q2';
+      case 'Q2_ACTIVE':
+        return 'END Q2';
+      case 'HALFTIME':
+        return 'START Q3';
+      case 'Q3_ACTIVE':
+        return 'END Q3';
+      case 'Q3_BREAK':
+        return 'START Q4';
+      case 'Q4_ACTIVE':
+        return 'CHECK';
+      case 'CHECK_SCORE':
+        return 'FINISH';
+      case 'OT_ACTIVE':
+        return 'END OT';
+      default:
+        return 'NEXT';
+    }
+  }
+
+  String? _nextStateFor(String state) {
+    switch (state) {
+      case 'Q1_ACTIVE':
+        return 'Q1_BREAK';
+      case 'Q1_BREAK':
+        return 'Q2_ACTIVE';
+      case 'Q2_ACTIVE':
+        return 'HALFTIME';
+      case 'HALFTIME':
+        return 'Q3_ACTIVE';
+      case 'Q3_ACTIVE':
+        return 'Q3_BREAK';
+      case 'Q3_BREAK':
+        return 'Q4_ACTIVE';
+      case 'Q4_ACTIVE':
+        return 'CHECK_SCORE';
+      case 'CHECK_SCORE':
+        return 'POST_MATCH';
+      case 'OT_ACTIVE':
+        return 'POST_MATCH';
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _confirmAndTransitionPeriod(
+    BuildContext context, {
+    required TimerStateModel? timerState,
+  }) async {
+    final nextState = _nextStateFor(widget.currentState);
+    if (nextState == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(_dialogTitleFor(nextState)),
+        content: Text(_dialogMessageFor(nextState)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Lanjutkan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    if (_isBusy) return;
+    setState(() => _isBusy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final currentTimeRemaining =
+          timerState != null ? currentRemainingSeconds(timerState) : 0.0;
+      final success =
+          await ref.read(matchActionsProvider.notifier).transitionLiveState(
+                matchId: widget.matchId,
+                nextState: nextState,
+                currentTimeRemaining: currentTimeRemaining,
+                quarterDurationSeconds:
+                    (widget.quarterDurationMinutes * 60).toDouble(),
+                otDurationSeconds: (widget.otDurationMinutes * 60).toDouble(),
+              );
+      if (!success && mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Gagal mengubah periode.')),
+        );
+      }
+    } on AppException catch (error) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Gagal mengubah periode.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
+  String _dialogTitleFor(String nextState) {
+    switch (nextState) {
+      case 'Q2_ACTIVE':
+        return 'Mulai Quarter 2?';
+      case 'Q3_ACTIVE':
+        return 'Mulai Quarter 3?';
+      case 'Q4_ACTIVE':
+        return 'Mulai Quarter 4?';
+      case 'POST_MATCH':
+        return 'Selesaikan Pertandingan?';
+      default:
+        return 'Ubah Periode?';
+    }
+  }
+
+  String _dialogMessageFor(String nextState) {
+    switch (nextState) {
+      case 'Q1_BREAK':
+      case 'HALFTIME':
+      case 'Q3_BREAK':
+      case 'CHECK_SCORE':
+      case 'POST_MATCH':
+        return 'Menit bermain pemain yang sedang di lapangan akan dihitung '
+            'sampai waktu timer saat ini.';
+      case 'Q2_ACTIVE':
+      case 'Q3_ACTIVE':
+      case 'Q4_ACTIVE':
+        return 'Timer akan di-reset ke durasi quarter penuh dan pemain '
+            'on-court memulai stint baru.';
+      default:
+        return 'Lanjutkan transisi periode pertandingan?';
+    }
   }
 }
 

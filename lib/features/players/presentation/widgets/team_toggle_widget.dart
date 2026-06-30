@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:budiutama_basketball/core/constants/firestore_paths.dart';
 import 'package:budiutama_basketball/core/utils/team_sort.dart';
+import 'package:budiutama_basketball/features/auth/domain/providers/auth_provider.dart';
 import 'package:budiutama_basketball/shared/models/team_model.dart';
 
 /// Provider untuk stream semua tim aktif.
@@ -30,6 +31,11 @@ class TeamToggleWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final role = ref.watch(userRoleProvider).valueOrNull;
+    if (role == 'player') {
+      return const SizedBox.shrink();
+    }
+
     final providedTeams = teams;
 
     if (providedTeams == null) {

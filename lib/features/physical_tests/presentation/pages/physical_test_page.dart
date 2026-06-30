@@ -118,8 +118,8 @@ class _PhysicalTestPageState extends ConsumerState<PhysicalTestPage>
     );
   }
 
-  void _showAddSessionSheet() {
-    showModalBottomSheet(
+  void _showAddSessionSheet() async {
+    final created = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -129,10 +129,45 @@ class _PhysicalTestPageState extends ConsumerState<PhysicalTestPage>
         academicYear: widget.academicYear,
       ),
     );
+    if (created == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sesi tes fisik berhasil dibuat.'),
+          backgroundColor: Color(0xFF3B6D11),
+        ),
+      );
+    }
   }
 }
 
 // ── DAFTAR SESI ───────────────────────────────────────────────────────────
+
+/// Label status sesi yang mudah dipahami operator.
+String physicalTestSessionStatusLabel(PhysicalTestSessionModel session) {
+  if (session.isStoppedEarly) return 'Sesi selesai';
+
+  final scheduledAt = session.scheduledAt;
+  if (scheduledAt != null) {
+    final now = DateTime.now();
+    final scheduledDate = DateTime(
+      scheduledAt.year,
+      scheduledAt.month,
+      scheduledAt.day,
+    );
+    final today = DateTime(now.year, now.month, now.day);
+    if (scheduledDate.isAfter(today)) return 'Sesi dijadwalkan';
+  }
+
+  return 'Belum selesai';
+}
+
+IconData physicalTestSessionStatusIcon(PhysicalTestSessionModel session) {
+  if (session.isStoppedEarly) return Icons.check_circle_outline;
+  if (physicalTestSessionStatusLabel(session) == 'Sesi dijadwalkan') {
+    return Icons.event_outlined;
+  }
+  return Icons.fitness_center;
+}
 
 class _SessionList extends ConsumerWidget {
   final String teamId;
@@ -208,10 +243,10 @@ class _SessionCard extends StatelessWidget {
         leading: CircleAvatar(
           backgroundColor: const Color(0xFFEFF4F8),
           child: Icon(
-            session.isStoppedEarly == true
-                ? Icons.pause_circle_outline
-                : Icons.fitness_center,
-            color: const Color(0xFF1A3A5C),
+            physicalTestSessionStatusIcon(session),
+            color: session.isStoppedEarly
+                ? const Color(0xFF3B6D11)
+                : const Color(0xFF1A3A5C),
             size: 20,
           ),
         ),
@@ -224,7 +259,7 @@ class _SessionCard extends StatelessWidget {
         ),
         subtitle: Text(
           'Semester ${session.semester} • ${session.academicYear}'
-          '${session.isStoppedEarly == true ? ' • Dihentikan awal' : ''}',
+          ' • ${physicalTestSessionStatusLabel(session)}',
           style: const TextStyle(fontSize: 11, color: Color(0xFF6B7A8D)),
         ),
         trailing: canManage && !isPast && session.isStoppedEarly != true
@@ -235,7 +270,7 @@ class _SessionCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 ),
-                child: const Text('Buka', style: TextStyle(fontSize: 12)),
+                child: const Text('Mulai', style: TextStyle(fontSize: 12)),
               )
             : TextButton(
                 onPressed: onStart,
@@ -273,7 +308,7 @@ class _ActiveSessionView extends ConsumerWidget {
         title: const Text('Sesi Tes Fisik'),
         leading: IconButton(
           icon: const Icon(Icons.close),
-          onPressed: () => _confirmClose(context, ref),
+          onPressed: () => _handleClose(context, ref),
         ),
       ),
       body: sessionAsync.when(
@@ -345,13 +380,21 @@ class _ActiveSessionView extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmClose(BuildContext context, WidgetRef ref) async {
+  Future<void> _handleClose(BuildContext context, WidgetRef ref) async {
+    final session = ref.read(physicalTestSessionProvider(sessionId)).valueOrNull;
+
+    // Sesi sudah selesai — langsung kembali ke daftar.
+    if (session?.isStoppedEarly == true) {
+      onClose();
+      return;
+    }
+
     final confirmed = await showConfirmDialog(
       context,
-      title: 'Tutup Sesi?',
+      title: 'Keluar dari Sesi?',
       content:
-          'Sesi akan tetap berjalan di latar belakang. Hasil yang sudah diinput tetap tersimpan.',
-      confirmLabel: 'Tutup',
+          'Hasil yang sudah diinput tetap tersimpan. Anda bisa melanjutkan lagi nanti.',
+      confirmLabel: 'Keluar',
     );
     if (confirmed == true) onClose();
   }
@@ -359,10 +402,10 @@ class _ActiveSessionView extends ConsumerWidget {
   Future<void> _stopSession(BuildContext context, WidgetRef ref) async {
     final confirmed = await showConfirmDialog(
       context,
-      title: 'Hentikan Sesi?',
+      title: 'Selesaikan Sesi?',
       content:
-          'Sesi akan ditandai selesai lebih awal. Hasil yang sudah diinput tetap tersimpan.',
-      confirmLabel: 'Hentikan',
+          'Sesi akan ditandai selesai. Hasil yang sudah diinput tetap tersimpan.',
+      confirmLabel: 'Selesai',
     );
     if (confirmed == true) {
       final success = await ref
@@ -370,12 +413,10 @@ class _ActiveSessionView extends ConsumerWidget {
           .stopSessionEarly(sessionId);
       if (!context.mounted) return;
 
-      if (success) {
-        onClose();
-      } else {
+      if (!success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Gagal menghentikan sesi tes fisik.'),
+            content: const Text('Gagal menyelesaikan sesi tes fisik.'),
             backgroundColor: Colors.red.shade700,
           ),
         );

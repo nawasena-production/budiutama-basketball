@@ -94,15 +94,13 @@ class _AppLayoutState extends ConsumerState<AppLayout> {
   Future<void> _logout() async {
     ref.read(pendingOtpProvider.notifier).state = null;
     await ref.read(authRepositoryProvider).signOut();
-    ref.invalidate(userRoleProvider);
-    ref.invalidate(currentUserDocIdProvider);
-    ref.invalidate(currentUserUidProvider);
-    ref.invalidate(currentUserProfileProvider);
+    // authSessionCoordinatorProvider menangani invalidate provider session
+    // saat authUidProvider berubah setelah signOut().
   }
 
   List<_AppDestination> _destinationsForRole(String role) {
     return [
-      if (role == 'coach' || role == 'manager')
+      if (role == 'coach' || role == 'manager' || role == 'statistician')
         const _AppDestination(
           label: 'Players',
           icon: Icons.people_outline,

@@ -5,10 +5,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:budiutama_basketball/core/constants/app_constants.dart';
+import 'package:budiutama_basketball/core/constants/role_navigation.dart';
 import 'package:budiutama_basketball/core/theme/app_theme.dart';
 
 // Auth
 import 'package:budiutama_basketball/features/auth/domain/providers/auth_provider.dart';
+import 'package:budiutama_basketball/features/auth/domain/providers/auth_session_provider.dart';
 import 'package:budiutama_basketball/features/auth/presentation/pages/login_page.dart';
 import 'package:budiutama_basketball/features/auth/presentation/pages/otp_verification_page.dart';
 
@@ -51,6 +54,9 @@ class App extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(authSessionCoordinatorProvider);
+    ref.watch(playerTeamBootstrapProvider);
+
     return MaterialApp.router(
       title: 'Budi Utama Basketball',
       debugShowCheckedModeBanner: false,
@@ -79,6 +85,7 @@ class App extends ConsumerWidget {
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
+  final userRoleAsync = ref.watch(userRoleProvider);
   final notifier = GoRouterRefreshStream(
     ref.watch(authRepositoryProvider).authStateStream,
   );
@@ -99,7 +106,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (isLoggedIn && pendingOtp != null && location != '/otp') {
         return '/otp';
       }
-      if (isLoggedIn && pendingOtp == null && isAuthRoute) return '/players';
+      if (isLoggedIn && pendingOtp == null && isAuthRoute) {
+        if (userRoleAsync.isLoading || userRoleAsync.isReloading) return null;
+        return RoleNavigation.defaultPath(userRoleAsync.valueOrNull);
+      }
       return null;
     },
     routes: [
@@ -127,7 +137,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // SRS Section 5.1 daftar menu navigasi).
       GoRoute(
         path: '/dashboard',
-        redirect: (context, state) => '/players',
+        redirect: (context, state) =>
+            RoleNavigation.defaultPath(
+              ref.read(userRoleProvider).valueOrNull,
+            ),
       ),
       ..._dashboardSlugs.map(
         (slug) => GoRoute(
@@ -192,46 +205,22 @@ class _DashboardPage extends ConsumerWidget {
   final String slug;
   const _DashboardPage({required this.slug});
 
-  /// Slug per role, urutannya WAJIB identik dengan
-  /// `AppLayout._destinationsForRole()` dan dengan komentar index di
-  /// `_buildBody()` / `_managerBody()` / dst. di bawah — ini adalah satu-
-  /// satunya tempat yang menterjemahkan index navigasi menjadi path URL,
-  /// supaya logika pemilihan halaman (`_buildBody` dkk.) tidak perlu
-  /// diubah sama sekali.
-  static const Map<String, List<String>> _slugsByRole = {
-    'manager': [
-      'players',
-      'training',
-      'events',
-      'injuries',
-      'physical-tests',
-      'statistics',
-      'audit-log',
-      'users',
-    ],
-    'coach': [
-      'training',
-      'events',
-      'injuries',
-      'physical-tests',
-      'statistics',
-      'audit-log',
-    ],
-    'statistician': ['events'],
-    'player': ['training', 'events', 'statistics'],
-  };
-
-  static List<String> _slugsFor(String role) => _slugsByRole[role] ?? const [];
-
-  static int _indexForSlug(String role, String slug) {
-    final index = _slugsFor(role).indexOf(slug);
-    return index == -1 ? 0 : index;
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final roleAsync = ref.watch(userRoleProvider);
     final userDocIdAsync = ref.watch(currentUserDocIdProvider);
+
+    // Jangan render menu dengan role lama saat session auth berganti —
+    // FutureProvider.isReloading masih membawa AsyncData user sebelumnya.
+    if (roleAsync.isLoading ||
+        roleAsync.isReloading ||
+        userDocIdAsync.isLoading ||
+        userDocIdAsync.isReloading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return roleAsync.when(
       loading: () => const Scaffold(
@@ -244,17 +233,20 @@ class _DashboardPage extends ConsumerWidget {
         final effectiveRole = role ?? 'player';
         final userDocId = userDocIdAsync.valueOrNull ?? '';
         final teamId = ref.watch(activeTeamIdProvider);
-        final roleSlugs = _slugsFor(effectiveRole);
-        final slugAllowed = roleSlugs.contains(slug);
+        final roleSlugs = RoleNavigation.slugsFor(effectiveRole);
+        final slugAllowed = RoleNavigation.slugAllowed(effectiveRole, slug);
         if (roleSlugs.isNotEmpty && !slugAllowed) {
           Future.microtask(() {
-            if (context.mounted) context.go('/${roleSlugs.first}');
+            if (context.mounted) {
+              context.go(RoleNavigation.defaultPath(effectiveRole));
+            }
           });
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        final selectedIndex = _indexForSlug(effectiveRole, slug);
+        final selectedIndex =
+            RoleNavigation.indexForSlug(effectiveRole, slug);
 
         return AppLayout(
           role: effectiveRole,
@@ -320,13 +312,13 @@ class _DashboardBody extends StatelessWidget {
         return _managerBody(context, index, teamId, userDocId);
 
       // ── COACH ───────────────────────────────────────────────────────
-      // 0: Training, 1: Events,
-      // 2: Injuries, 3: Physical Tests, 4: Statistics, 5: Audit Log
+      // 0: Players, 1: Training, 2: Events,
+      // 3: Injuries, 4: Physical Tests, 5: Statistics, 6: Audit Log
       case 'coach':
         return _coachBody(context, index, teamId, userDocId);
 
       // ── STATISTICIAN ─────────────────────────────────────────────────
-      // 0: Events
+      // 0: Players, 1: Events
       case 'statistician':
         return _statisticianBody(context, index, teamId, userDocId);
 
@@ -357,7 +349,7 @@ class _DashboardBody extends StatelessWidget {
         return EventsPage(
           teamId: teamId,
           role: 'manager',
-          academicYear: '2025/2026',
+          academicYear: AppConstants.currentAcademicYear,
           createdBy: userDocId,
           onEventSelected: (event) =>
               _pushMatchesPage(context, event, 'manager', teamId, userDocId),
@@ -373,7 +365,7 @@ class _DashboardBody extends StatelessWidget {
           teamId: teamId,
           role: 'manager',
           createdBy: userDocId,
-          academicYear: '2025/2026',
+          academicYear: AppConstants.currentAcademicYear,
         );
       case 5: // Statistics — Step 18
         return const StatisticsDashboardPage();
@@ -389,37 +381,39 @@ class _DashboardBody extends StatelessWidget {
   Widget _coachBody(
       BuildContext context, int index, String teamId, String userDocId) {
     switch (index) {
-      case 0: // Training (read-only)
+      case 0: // Players (read-only)
+        return const PlayersRootPage(role: 'coach');
+      case 1: // Training (read-only)
         return TrainingPage(
           teamId: teamId,
           role: 'coach',
           createdBy: userDocId,
         );
-      case 1: // Events
+      case 2: // Events
         return EventsPage(
           teamId: teamId,
           role: 'coach',
-          academicYear: '2025/2026',
+          academicYear: AppConstants.currentAcademicYear,
           createdBy: userDocId,
           onEventSelected: (event) =>
               _pushMatchesPage(context, event, 'coach', teamId, userDocId),
         );
-      case 2: // Injuries — placeholder Step 10
+      case 3: // Injuries
         return InjuryPage(
           teamId: teamId,
           role: 'coach',
           createdBy: userDocId,
         );
-      case 3: // Physical Tests — placeholder Step 11
+      case 4: // Physical Tests
         return PhysicalTestPage(
           teamId: teamId,
           role: 'coach',
           createdBy: userDocId,
-          academicYear: '2025/2026',
+          academicYear: AppConstants.currentAcademicYear,
         );
-      case 4: // Statistics — Step 18
+      case 5: // Statistics
         return const StatisticsDashboardPage();
-      case 5: // Audit Log — Step 19
+      case 6: // Audit Log
         return const AuditLogPage();
       default:
         return const _ComingSoonPage(label: 'Dashboard');
@@ -429,11 +423,13 @@ class _DashboardBody extends StatelessWidget {
   Widget _statisticianBody(
       BuildContext context, int index, String teamId, String userDocId) {
     switch (index) {
-      case 0: // Events
+      case 0: // Players (read-only roster untuk lineup)
+        return const PlayersRootPage(role: 'statistician');
+      case 1: // Events
         return EventsPage(
           teamId: teamId,
           role: 'statistician',
-          academicYear: '2025/2026',
+          academicYear: AppConstants.currentAcademicYear,
           createdBy: userDocId,
           onEventSelected: (event) => _pushMatchesPage(
               context, event, 'statistician', teamId, userDocId),
@@ -456,7 +452,7 @@ class _DashboardBody extends StatelessWidget {
         return EventsPage(
           teamId: teamId,
           role: 'player',
-          academicYear: '2025/2026',
+          academicYear: AppConstants.currentAcademicYear,
           createdBy: userDocId,
           onEventSelected: (event) =>
               _pushMatchesPage(context, event, 'player', teamId, userDocId),

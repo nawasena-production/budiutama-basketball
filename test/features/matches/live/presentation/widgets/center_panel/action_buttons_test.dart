@@ -9,11 +9,17 @@ void main() {
   }
 
   group('ActionButtons — kPlayerActionButtons (data statis)', () {
-    test('berisi tepat 13 tombol aksi sesuai SRS FR-LMS-03', () {
-      expect(kPlayerActionButtons, hasLength(13));
+    test('berisi 12 tombol aksi tanpa ASSIST di grid utama', () {
+      expect(kPlayerActionButtons, hasLength(12));
+      expect(
+        kPlayerActionButtons.map((s) => s.actionType),
+        isNot(contains('ASSIST')),
+      );
     });
 
-    test('hanya 2PT_MADE, 3PT_MADE, MISS_2PT, MISS_3PT yang butuh court overlay', () {
+    test(
+        'hanya 2PT_MADE, 3PT_MADE, MISS_2PT, MISS_3PT yang butuh court overlay',
+        () {
       final needsOverlay = kPlayerActionButtons
           .where((s) => s.needsCourtOverlay)
           .map((s) => s.actionType)
@@ -25,10 +31,10 @@ void main() {
     });
 
     test('free throw (1PT_MADE, MISS_1PT) TIDAK butuh court overlay', () {
-      final ft = kPlayerActionButtons
-          .firstWhere((s) => s.actionType == '1PT_MADE');
-      final missFt = kPlayerActionButtons
-          .firstWhere((s) => s.actionType == 'MISS_1PT');
+      final ft =
+          kPlayerActionButtons.firstWhere((s) => s.actionType == '1PT_MADE');
+      final missFt =
+          kPlayerActionButtons.firstWhere((s) => s.actionType == 'MISS_1PT');
       expect(ft.needsCourtOverlay, isFalse);
       expect(missFt.needsCourtOverlay, isFalse);
     });
@@ -40,7 +46,7 @@ void main() {
   });
 
   group('ActionButtons — tampilan grid', () {
-    testWidgets('menampilkan 13 tombol saat enabled', (tester) async {
+    testWidgets('menampilkan semua tombol saat enabled', (tester) async {
       await tester.pumpWidget(
         wrapInApp(
           ActionButtons(enabled: true, onActionTap: (_) {}),
@@ -50,8 +56,27 @@ void main() {
       // Setiap tombol unik diidentifikasi lewat shortLabel-nya.
       for (final spec in kPlayerActionButtons) {
         expect(find.text(spec.shortLabel), findsOneWidget,
-            reason: 'tombol "${spec.shortLabel}" (${spec.actionType}) harus tampil');
+            reason:
+                'tombol "${spec.shortLabel}" (${spec.actionType}) harus tampil');
       }
+    });
+
+    testWidgets('tetap fit pada panel center yang pendek', (tester) async {
+      await tester.pumpWidget(
+        wrapInApp(
+          Center(
+            child: SizedBox(
+              width: 520,
+              height: 150,
+              child: ActionButtons(enabled: true, onActionTap: (_) {}),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('+2'), findsOneWidget);
+      expect(find.text('FOUL'), findsOneWidget);
     });
   });
 
@@ -98,7 +123,8 @@ void main() {
   });
 
   group('ActionButtons — interaksi saat disabled', () {
-    testWidgets('tap tombol manapun TIDAK memanggil onActionTap saat enabled=false',
+    testWidgets(
+        'tap tombol manapun TIDAK memanggil onActionTap saat enabled=false',
         (tester) async {
       ActionButtonSpec? tapped;
 

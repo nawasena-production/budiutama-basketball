@@ -63,7 +63,8 @@ class LineupRepository {
     final existing = await ref.get();
     if (existing.exists) return;
 
-    await ref.set({
+    final batch = _db.batch();
+    batch.set(ref, {
       'player_id': playerId,
       'full_name': fullName,
       'jersey_number': jerseyNumber,
@@ -75,6 +76,16 @@ class LineupRepository {
       'total_seconds_played': 0,
       'updated_at': FieldValue.serverTimestamp(),
     });
+    batch.set(
+      _db.collection(FirestorePaths.matchPlayerStats(matchId)).doc(statsDocId),
+      _emptyPlayerStatsData(
+        playerId: playerId,
+        fullName: fullName,
+        jerseyNumber: jerseyNumber,
+      ),
+      SetOptions(merge: true),
+    );
+    await batch.commit();
   }
 
   /// Substitusi: satu pemain KELUAR, satu pemain MASUK — dieksekusi
@@ -163,12 +174,19 @@ class LineupRepository {
         _db.collection(FirestorePaths.matchPlayerStats(matchId)).doc(
               playerOut.id,
             );
-    batch.update(outStatsRef, {
-      'total_seconds_played': FieldValue.increment(
-        secondsPlayedThisStint.round(),
-      ),
-      'updated_at': FieldValue.serverTimestamp(),
-    });
+    batch.set(
+      outStatsRef,
+      {
+        'player_id': playerOut.playerId,
+        'full_name': playerOut.fullName,
+        'jersey_number': playerOut.jerseyNumber,
+        'total_seconds_played': FieldValue.increment(
+          secondsPlayedThisStint.round(),
+        ),
+        'updated_at': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
 
     await batch.commit();
   }
@@ -180,5 +198,44 @@ class LineupRepository {
         .count()
         .get();
     return (snap.count ?? 0) + 1;
+  }
+
+  Map<String, dynamic> _emptyPlayerStatsData({
+    required String playerId,
+    required String fullName,
+    required int jerseyNumber,
+  }) {
+    return {
+      'player_id': playerId,
+      'full_name': fullName,
+      'jersey_number': jerseyNumber,
+      'points': 0,
+      'ft_made': 0,
+      'ft_attempted': 0,
+      'fg2_made': 0,
+      'fg2_attempted': 0,
+      'fg3_made': 0,
+      'fg3_attempted': 0,
+      'assists': 0,
+      'offensive_rebounds': 0,
+      'defensive_rebounds': 0,
+      'steals': 0,
+      'turnovers': 0,
+      'blocks': 0,
+      'fouls': 0,
+      'shot_zones': {
+        'PAINT': {'made': 0, 'attempted': 0},
+        'MEDIUM_LEFT': {'made': 0, 'attempted': 0},
+        'MEDIUM_CENTER': {'made': 0, 'attempted': 0},
+        'MEDIUM_RIGHT': {'made': 0, 'attempted': 0},
+        'CORNER_LEFT': {'made': 0, 'attempted': 0},
+        'CORNER_RIGHT': {'made': 0, 'attempted': 0},
+        'WING_LEFT': {'made': 0, 'attempted': 0},
+        'WING_RIGHT': {'made': 0, 'attempted': 0},
+        'CENTER_3': {'made': 0, 'attempted': 0},
+      },
+      'total_seconds_played': 0,
+      'updated_at': FieldValue.serverTimestamp(),
+    };
   }
 }

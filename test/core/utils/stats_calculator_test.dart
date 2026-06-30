@@ -88,4 +88,53 @@ void main() {
       expect(StatsCalculator.zonePercentage(zone), 75.0);
     });
   });
+
+  group('StatsCalculator.efficiency', () {
+    test('menghitung EF sesuai rumus FIBA', () {
+      final ef = StatsCalculator.efficiency(
+        points: 12,
+        offensiveRebounds: 2,
+        defensiveRebounds: 5,
+        assists: 4,
+        steals: 1,
+        blocks: 1,
+        fg2Made: 4,
+        fg2Attempted: 8,
+        fg3Made: 1,
+        fg3Attempted: 3,
+        ftMade: 1,
+        ftAttempted: 2,
+        turnovers: 3,
+      );
+
+      expect(ef, 15);
+    });
+
+    test('attempted lebih kecil dari made tidak menghasilkan penalti negatif',
+        () {
+      final ef = StatsCalculator.efficiency(
+        points: 5,
+        offensiveRebounds: 0,
+        defensiveRebounds: 0,
+        assists: 0,
+        steals: 0,
+        blocks: 0,
+        fg2Made: 2,
+        fg2Attempted: 1,
+        fg3Made: 0,
+        fg3Attempted: 0,
+        ftMade: 1,
+        ftAttempted: 0,
+        turnovers: 0,
+      );
+
+      expect(ef, 5);
+    });
+  });
+
+  group('StatsCalculator.formatMinutes', () {
+    test('format detik menjadi m:ss', () {
+      expect(StatsCalculator.formatMinutes(605), '10:05');
+    });
+  });
 }

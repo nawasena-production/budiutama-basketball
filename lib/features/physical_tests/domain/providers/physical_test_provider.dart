@@ -66,8 +66,6 @@ class PhysicalTestActionsNotifier extends AsyncNotifier<void> {
     state = const AsyncLoading();
     try {
       await _repo.createSession(sessionId: sessionId, session: session);
-      ref.read(activeSessionIdProvider.notifier).state = sessionId;
-      ref.read(activeSessionTeamIdProvider.notifier).state = session.teamId;
       state = const AsyncData(null);
       return true;
     } catch (e, st) {
@@ -94,7 +92,8 @@ class PhysicalTestActionsNotifier extends AsyncNotifier<void> {
         beepShuttle: beepShuttle,
       );
       return true;
-    } catch (e) {
+    } catch (e, st) {
+      state = AsyncError(e, st);
       return false;
     }
   }
@@ -115,7 +114,8 @@ class PhysicalTestActionsNotifier extends AsyncNotifier<void> {
         timeSeconds: timeSeconds,
       );
       return true;
-    } catch (e) {
+    } catch (e, st) {
+      state = AsyncError(e, st);
       return false;
     }
   }
