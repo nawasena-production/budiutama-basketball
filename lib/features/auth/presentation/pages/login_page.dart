@@ -107,6 +107,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
+    // Blokir router agar tidak redirect ke dashboard selama pengecekan
+    // trusted-device / pengiriman OTP berlangsung secara async. Tanpa ini,
+    // auth state change dari signIn() akan memicu router sebelum
+    // pendingOtpProvider sempat di-set (race condition).
+    ref.read(isOtpCheckPendingProvider.notifier).state = true;
+
     try {
       final repository = ref.read(authRepositoryProvider);
       final credential = await repository.signIn(
@@ -126,6 +132,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             userId: userId,
             deviceHash: deviceHash,
           );
+          // Lepas blokir SETELAH pendingOtp di-set agar router redirect ke /otp
+          ref.read(isOtpCheckPendingProvider.notifier).state = false;
           if (mounted) {
             context.go(
               '/otp',
@@ -141,10 +149,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       }
 
       ref.read(pendingOtpProvider.notifier).state = null;
+      ref.read(isOtpCheckPendingProvider.notifier).state = false;
       if (mounted) context.go(RoleNavigation.defaultPath(role));
     } on AuthException catch (error) {
+      // Sign out untuk rollback jika login berhasil tapi langkah selanjutnya
+      // gagal (mis. gagal kirim OTP) — user harus login ulang.
+      await ref.read(authRepositoryProvider).signOut();
+      ref.read(isOtpCheckPendingProvider.notifier).state = false;
       _showGenericError(error.message);
     } catch (_) {
+      await ref.read(authRepositoryProvider).signOut();
+      ref.read(isOtpCheckPendingProvider.notifier).state = false;
       _showGenericError('Login gagal. Silakan coba lagi.');
     } finally {
       if (mounted) setState(() => _isLoading = false);

@@ -43,6 +43,11 @@ final userRoleProvider = FutureProvider.autoDispose<String?>((ref) async {
 
 final pendingOtpProvider = StateProvider<PendingOtp?>((ref) => null);
 
+/// True selama _handleLogin sedang memeriksa trusted-device / mengirim OTP.
+/// Tidak di-reset oleh authSessionCoordinatorProvider agar tidak dibersihkan
+/// bersamaan dengan auth state change (yang menyebabkan race condition).
+final isOtpCheckPendingProvider = StateProvider<bool>((ref) => false);
+
 // ── TAMBAHAN BARU (dibutuhkan Step 8 & 9) ────────────────────────────────
 
 /// Document ID pengguna yang sedang login di collection `users`.

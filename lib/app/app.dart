@@ -86,11 +86,12 @@ class App extends ConsumerWidget {
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
   final userRoleAsync = ref.watch(userRoleProvider);
-  // Watch pendingOtpProvider di sini agar router rebuild saat OTP di-set
-  // setelah login. Tanpa ini, router sudah redirect ke dashboard sebelum
-  // _handleLogin sempat set pendingOtpProvider (race condition — login page
-  // ter-unmount lebih dulu karena authStateStream emit saat signIn() selesai).
   final pendingOtp = ref.watch(pendingOtpProvider);
+  // Watch isOtpCheckPendingProvider untuk memblokir redirect ke dashboard
+  // selama _handleLogin sedang menjalankan pengecekan trusted-device / OTP
+  // secara async. Ini mencegah race condition di mana router melihat
+  // pendingOtp == null (belum di-set) lalu langsung redirect ke dashboard.
+  final isOtpCheckPending = ref.watch(isOtpCheckPendingProvider);
   final notifier = GoRouterRefreshStream(
     ref.watch(authRepositoryProvider).authStateStream,
   );
@@ -107,6 +108,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isAuthRoute = location == '/login' || location == '/otp';
 
       if (!isLoggedIn && !isAuthRoute) return '/login';
+      // Tunggu selama pengecekan OTP berlangsung — jangan redirect dulu
+      if (isLoggedIn && isOtpCheckPending && isAuthRoute) return null;
       if (isLoggedIn && pendingOtp != null && location != '/otp') {
         return '/otp';
       }
